@@ -28,6 +28,12 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* List of processes in THREAD_BLOCK state */
+static struct list blocked_list;
+
+/* The fastest time  */
+static int64_t unblock_time_for_next;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -79,6 +85,68 @@ static tid_t allocate_tid (void);
 // setup temporal gdt first.
 static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
+/* Setter function for unblock_time_for_next */
+void set_unblock_time_for_next(int64_t ticks){
+	if(unblock_time_for_next > ticks) unblock_time_for_next = ticks;
+}
+
+/* Getter function for unblock_time_for_next */
+int64_t get_unblock_time_for_next(void){
+	return unblock_time_for_next;
+}
+
+/* Block thread until the right time */
+void make_thread_block(int64_t ticks){
+	struct thread *curr = thread_current();
+	enum intr_level old_level;
+	old_level = intr_disable();
+
+	ASSERT(curr != idle_thread);
+	
+	set_unblock_time_for_next(curr->unblock_time = ticks);
+	list_push_back(&blocked_list, &curr->elem);
+	thread_block();
+	intr_set_level(old_level);
+}
+
+void make_thread_unblock(int64_t unblock_time){
+	struct list_elem *elem_needle;
+	unblock_time_for_next = INT64_MAX;
+
+	/*
+	for(elem_needle = list_begin(&blocked_list);
+		elem_needle != list_end(&blocked_list); ){
+			struct thread *thread_needle;
+
+			thread_needle = list_entry(elem_needle, struct thread, elem);
+
+			printf("hihihi\n");
+
+			if(unblock_time < thread_needle->unblock_time){
+				elem_needle = list_next(elem_needle);
+				set_unblock_time_for_next(thread_needle->unblock_time);
+			}
+			else{
+				elem_needle = list_remove(&thread_needle->elem);
+				thread_unblock(thread_needle);
+			}
+	}*/
+
+	elem_needle = list_begin(&blocked_list);
+	while(elem_needle!=list_end(&blocked_list)){
+		struct thread *thread_needle = list_entry(elem_needle, struct thread, elem);
+
+		if(unblock_time < thread_needle->unblock_time){
+			elem_needle = list_next(elem_needle);
+			set_unblock_time_for_next(thread_needle->unblock_time);
+		}
+		else{
+			elem_needle = list_remove(&thread_needle->elem);
+			thread_unblock(thread_needle);
+		}
+	}
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -109,6 +177,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	list_init (&blocked_list);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();

@@ -93,8 +93,8 @@ timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+
+	make_thread_block(start+ticks);
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -125,7 +125,8 @@ timer_print_stats (void) {
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
-	thread_tick ();
+	thread_tick();
+	if(ticks >= get_unblock_time_for_next()) make_thread_unblock(ticks);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

@@ -91,6 +91,7 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
+	int64_t unblock_time;				/* Time to be unblocked */
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
@@ -113,6 +114,12 @@ struct thread {
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+
+void set_unblock_time_for_next(int64_t ticks);
+int64_t get_unblock_time_for_next(void);
+
+void make_thread_block(int64_t ticks);
+void make_thread_unblock(int64_t unblock_time);
 
 void thread_init (void);
 void thread_start (void);
