@@ -97,12 +97,12 @@ int64_t get_unblock_time_for_next(void){
 
 /* Block thread until the right time */
 void make_thread_block(int64_t ticks){
-	struct thread *curr = thread_current();
+	struct thread *curr = thread_current ();
 	enum intr_level old_level;
-	old_level = intr_disable();
 
 	ASSERT(curr != idle_thread);
 	
+	old_level = intr_disable();
 	set_unblock_time_for_next(curr->unblock_time = ticks);
 	list_push_back(&blocked_list, &curr->elem);
 	thread_block();
@@ -113,14 +113,11 @@ void make_thread_unblock(int64_t unblock_time){
 	struct list_elem *elem_needle;
 	unblock_time_for_next = INT64_MAX;
 
-	/*
 	for(elem_needle = list_begin(&blocked_list);
 		elem_needle != list_end(&blocked_list); ){
 			struct thread *thread_needle;
 
 			thread_needle = list_entry(elem_needle, struct thread, elem);
-
-			printf("hihihi\n");
 
 			if(unblock_time < thread_needle->unblock_time){
 				elem_needle = list_next(elem_needle);
@@ -130,22 +127,33 @@ void make_thread_unblock(int64_t unblock_time){
 				elem_needle = list_remove(&thread_needle->elem);
 				thread_unblock(thread_needle);
 			}
-	}*/
-
-	elem_needle = list_begin(&blocked_list);
-	while(elem_needle!=list_end(&blocked_list)){
-		struct thread *thread_needle = list_entry(elem_needle, struct thread, elem);
-
-		if(unblock_time < thread_needle->unblock_time){
-			elem_needle = list_next(elem_needle);
-			set_unblock_time_for_next(thread_needle->unblock_time);
-		}
-		else{
-			elem_needle = list_remove(&thread_needle->elem);
-			thread_unblock(thread_needle);
-		}
 	}
 }
+
+/* Compare two elem's priority then return a boolean value
+to use this function in list_insert_ordered. */
+bool priority_compare(struct list_elem *elem1, struct list_elem *elem2, void *aux){
+	int priority1, priority2;
+
+	priority1 = list_entry(elem1, struct thread, elem)->priority;
+	priority2 = list_entry(elem2, struct thread, elem)->priority;
+	if(priority1 > priority2) return true;
+	else return false;
+}
+
+
+/* Change running thread
+when the list's thread's priority is higher than the current one. */
+void change_to_max_priority(void){
+	int priority_curr, priority_list;
+
+	if(list_empty(&ready_list)==false){
+		priority_curr = thread_current()->priority;
+		priority_list = list_entry(list_front(&ready_list), struct thread, elem)->priority;
+		if(priority_curr < priority_list) thread_yield();
+	}
+}
+
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -276,6 +284,8 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 
+	change_to_max_priority();
+
 	return tid;
 }
 
@@ -309,7 +319,8 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	//list_push_back (&ready_list, &t->elem);
+	list_insert_ordered (&ready_list, &t->elem, priority_compare, 0);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -372,7 +383,8 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		//list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered (&ready_list, &curr->elem, priority_compare, 0);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -381,6 +393,7 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	change_to_max_priority();
 }
 
 /* Returns the current thread's priority. */
