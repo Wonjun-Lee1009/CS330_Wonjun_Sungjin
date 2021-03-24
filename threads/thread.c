@@ -141,7 +141,6 @@ bool priority_compare(struct list_elem *elem1, struct list_elem *elem2, void *au
 	else return false;
 }
 
-
 /* Change running thread
 when the list's thread's priority is higher than the current one. */
 void change_to_max_priority(void){
@@ -154,7 +153,6 @@ void change_to_max_priority(void){
 	}
 }
 
-
 /* Execute priority donation */
 void priority_donation(void){
 	struct thread *curr;
@@ -166,6 +164,26 @@ void priority_donation(void){
 		if(lock->holder==NULL && lock->holder->priority >= curr->priority) return;
 		lock->holder->priority = curr->priority;
 		curr = lock->holder;
+	}
+}
+
+/* release target lock and remove it from the current thread's donates(list)*/
+void release_lock_and_remove(struct lock *lock){
+	struct thread *curr;
+	struct list_elem *elem_needle, *temp_elem;
+
+	curr = thread_current();
+	for(elem_needle = list_begin(&curr->donates);
+		elem_needle != list_end(&curr->donates);
+		elem_needle = temp_elem){
+			struct thread *thread_needle;
+
+			thread_needle = list_entry(elem_needle, struct thread, donation_elem);
+			if(thread_needle->req_lock == lock){
+				temp_elem = list_next(elem_needle);
+				list_remove(elem_needle);
+			}
+			else temp_elem = list_next(elem_needle);
 	}
 }
 

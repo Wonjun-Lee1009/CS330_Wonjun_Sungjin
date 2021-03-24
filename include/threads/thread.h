@@ -129,6 +129,8 @@ void change_to_max_priority(void);
 bool priority_compare(struct list_elem *elem1, struct list_elem *elem2, void *aux);
 
 void priority_donation(void);
+void release_lock_and_remove(struct lock *lock);
+void update_priority(void);
 
 void thread_init (void);
 void thread_start (void);
