@@ -155,6 +155,20 @@ void change_to_max_priority(void){
 }
 
 
+/* Execute priority donation */
+void priority_donation(void){
+	struct thread *curr;
+	struct lock *lock;
+
+	curr = thread_current();
+	lock = curr->req_lock;
+	for(lock = curr->req_lock; lock; lock = curr->req_lock){
+		if(lock->holder==NULL && lock->holder->priority >= curr->priority) return;
+		lock->holder->priority = curr->priority;
+		curr = lock->holder;
+	}
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S

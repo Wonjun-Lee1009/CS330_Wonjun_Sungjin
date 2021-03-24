@@ -128,6 +128,8 @@ void make_thread_unblock(int64_t unblock_time);
 void change_to_max_priority(void);
 bool priority_compare(struct list_elem *elem1, struct list_elem *elem2, void *aux);
 
+void priority_donation(void);
+
 void thread_init (void);
 void thread_start (void);
 
