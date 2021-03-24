@@ -187,6 +187,27 @@ void release_lock_and_remove(struct lock *lock){
 	}
 }
 
+/*  */
+void update_priority(void){
+	struct thread *curr;
+	struct list_elem *donates_elem_needle;
+
+	curr = thread_current();
+	curr->priority = curr->pri_origin;
+
+	if(list_empty(&curr->donates)) return;
+
+	donates_elem_needle = list_front(&curr->donates);
+	while(donates_elem_needle != list_end(&curr->donates)){
+		
+		if(curr->priority<
+		list_entry(donates_elem_needle, struct thread, donates_elem)->priority){
+			curr->priority = list_entry(donates_elem_needle, struct thread, donates_elem)->priority;
+		}
+		donates_elem_needle = list_next(donates_elem_needle);
+	}
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -524,7 +545,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
 	t->pri_origin = priority;
-	list_init(t->donates);
+	list_init(&t->donates);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
