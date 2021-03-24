@@ -237,6 +237,10 @@ lock_release (struct lock *lock) {
 	ASSERT (lock_held_by_current_thread (lock));
 
 	lock->holder = NULL;
+
+	release_lock_and_remove();
+	update_priority();
+
 	sema_up (&lock->semaphore);
 }
 
