@@ -8,9 +8,9 @@ Calibrating timer...  157,081,600 loops/s.
 Boot complete.
 Executing 'priority-donate-multiple2':
 (priority-donate-multiple2) begin
-(priority-donate-multiple2) Main thread should have priority 34.  Actual priority: 31.
+(priority-donate-multiple2) Main thread should have priority 34.  Actual priority: 34.
 (priority-donate-multiple2) Thread c finished.
-(priority-donate-multiple2) Main thread should have priority 36.  Actual priority: 31.
+(priority-donate-multiple2) Main thread should have priority 36.  Actual priority: 36.
 (priority-donate-multiple2) Thread a acquired lock a.
 (priority-donate-multiple2) Thread a finished.
 (priority-donate-multiple2) Main thread should have priority 36.  Actual priority: 31.
@@ -21,7 +21,7 @@ Executing 'priority-donate-multiple2':
 (priority-donate-multiple2) end
 Execution of 'priority-donate-multiple2' complete.
 Timer: 25 ticks
-Thread: 0 idle ticks, 25 kernel ticks, 0 user ticks
+Thread: 0 idle ticks, 26 kernel ticks, 0 user ticks
 Console: 1165 characters output
 Keyboard: 0 keys pressed
 Powering off...

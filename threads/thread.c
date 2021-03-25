@@ -159,11 +159,20 @@ void priority_donation(void){
 	struct lock *lock;
 
 	curr = thread_current();
-	lock = curr->req_lock;
-	for(lock = curr->req_lock; lock; lock = curr->req_lock){
-		if(lock->holder==NULL && lock->holder->priority >= curr->priority) return;
+	// lock = curr->req_lock;
+	
+	/* for(lock = curr->req_lock; lock; lock = curr->req_lock){
+		if(lock->holder==NULL || lock->holder->priority >= curr->priority) return;
 		lock->holder->priority = curr->priority;
 		curr = lock->holder;
+	} */
+
+	for(lock = curr->req_lock; lock; lock = curr->req_lock){
+		if(lock->holder!=NULL && lock->holder->priority < curr->priority){
+			lock->holder->priority = curr->priority;
+			curr = lock->holder;
+		}
+		else break;
 	}
 }
 
@@ -178,7 +187,7 @@ void release_lock_and_remove(struct lock *lock){
 		elem_needle = temp_elem){
 			struct thread *thread_needle;
 
-			thread_needle = list_entry(elem_needle, struct thread, donation_elem);
+			thread_needle = list_entry(elem_needle, struct thread, donates_elem);
 			if(thread_needle->req_lock == lock){
 				temp_elem = list_next(elem_needle);
 				list_remove(elem_needle);
@@ -191,20 +200,20 @@ void release_lock_and_remove(struct lock *lock){
 void update_priority(void){
 	struct thread *curr;
 	struct list_elem *donates_elem_needle;
+	int h_pri;
 
 	curr = thread_current();
 	curr->priority = curr->pri_origin;
 
-	if(list_empty(&curr->donates)) return;
-
-	donates_elem_needle = list_front(&curr->donates);
-	while(donates_elem_needle != list_end(&curr->donates)){
-		
-		if(curr->priority<
-		list_entry(donates_elem_needle, struct thread, donates_elem)->priority){
-			curr->priority = list_entry(donates_elem_needle, struct thread, donates_elem)->priority;
+	if(list_empty(&curr->donates) != 0){
+		donates_elem_needle = list_begin(&curr->donates);
+		while(donates_elem_needle != list_end(&curr->donates)){
+			if(curr->priority<
+			list_entry(donates_elem_needle, struct thread, donates_elem)->priority){
+				curr->priority = list_entry(donates_elem_needle, struct thread, donates_elem)->priority;
+			}
+			donates_elem_needle = list_next(donates_elem_needle);
 		}
-		donates_elem_needle = list_next(donates_elem_needle);
 	}
 }
 
@@ -445,7 +454,14 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	/* thread_current ()->priority = new_priority;
+	change_to_max_priority(); */
+	thread_current() -> priority = new_priority;
+
+	thread_current() -> pri_origin = new_priority;
+
+	update_priority();
+	
 	change_to_max_priority();
 }
 
@@ -546,6 +562,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->magic = THREAD_MAGIC;
 	t->pri_origin = priority;
 	list_init(&t->donates);
+	t->req_lock = NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

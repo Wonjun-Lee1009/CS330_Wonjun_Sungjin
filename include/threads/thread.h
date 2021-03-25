@@ -92,6 +92,8 @@ struct thread {
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
 	int64_t unblock_time;				/* Time to be unblocked */
+	
+	/* Added for priority donation */
 	int pri_origin;						/* original priority */
 	struct lock *req_lock;				/* lock which is requested */
 	struct list donates;				/* list of threads which donate their priority to this thread */
