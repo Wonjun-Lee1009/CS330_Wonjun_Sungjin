@@ -202,7 +202,7 @@ lock_acquire (struct lock *lock) {
 	if(lock->holder != NULL) {
 		curr = thread_current();
 		curr->req_lock = lock;
-		thread_current()->req_lock = lock;
+		//thread_current()->req_lock = lock;
 		list_insert_ordered(&lock->holder->donates, &thread_current()->donates_elem, priority_compare, 0);
 		priority_donation();
 	}
@@ -240,14 +240,18 @@ lock_try_acquire (struct lock *lock) {
    handler. */
 void
 lock_release (struct lock *lock) {
+	//enum intr_level old_level;
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 
 	lock->holder = NULL;
 
+	//old_level = intr_disable ();
+
 	release_lock_and_remove(lock);
 	update_priority();
 
+	//intr_set_level (old_level);
 	sema_up (&lock->semaphore);
 }
 
