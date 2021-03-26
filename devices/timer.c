@@ -135,7 +135,7 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 			periodic_recent_cpu();
 		}
 		if(ticks % 4 == 0){
-			calc_curr_thread_pri();
+			periodic_priority();
 		}
 	}
 }

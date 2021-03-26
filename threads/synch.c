@@ -203,8 +203,10 @@ lock_acquire (struct lock *lock) {
 		curr = thread_current();
 		curr->req_lock = lock;
 		//thread_current()->req_lock = lock;
-		list_insert_ordered(&lock->holder->donates, &thread_current()->donates_elem, priority_compare, 0);
-		priority_donation();
+		if(!thread_mlfqs){
+			list_insert_ordered(&lock->holder->donates, &thread_current()->donates_elem, priority_compare, 0);
+			priority_donation();
+		}
 	}
 
 	sema_down (&lock->semaphore);
@@ -248,8 +250,10 @@ lock_release (struct lock *lock) {
 
 	//old_level = intr_disable ();
 
-	release_lock_and_remove(lock);
-	update_priority();
+	if(!thread_mlfqs) {
+		release_lock_and_remove(lock);
+		update_priority();
+	}
 
 	//intr_set_level (old_level);
 	sema_up (&lock->semaphore);

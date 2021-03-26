@@ -502,37 +502,53 @@ thread_set_priority (int new_priority) {
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) {
-	return thread_current ()->priority;
+	int pri;
+	pri = thread_current ()->priority;
+	return pri;
 }
 
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice UNUSED) {
 	/* TODO: Your implementation goes here */
+	intr_disable();
 	thread_current() -> nice = nice;
 	calc_curr_thread_pri();
 	change_to_max_priority();
+	intr_enable();
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) {
 	/* TODO: Your implementation goes here */
-	return thread_current()->nice;
+	int get_nice;
+	intr_disable();
+	get_nice = thread_current()->nice;
+	intr_enable();
+	return get_nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
-	return round_to_nearest(load_avg*100);
+	int avg;
+	intr_disable();
+	avg = round_to_nearest(load_avg*100);
+	intr_enable();
+	return avg;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
-	return round_to_nearest(thread_current()->recent_cpu*100);
+	int cpu;
+	intr_disable();
+	cpu = round_to_nearest(thread_current()->recent_cpu*100);
+	intr_enable();
+	return cpu;
 }
 
 /* Calculate ready_threads (number of running & ready thread) */
@@ -560,8 +576,26 @@ void
 calc_curr_thread_pri(void){
 	struct thread *curr;
 	curr = thread_current();
-	thread_current()->priority = ((PRI_MAX * MK_FIXED) - (curr->recent_cpu / 4)
-	 - (curr->nice * MK_FIXED * 2)) / MK_FIXED;
+	if(thread_current()!=idle_thread){
+		thread_current()->priority = ((PRI_MAX * MK_FIXED) - (curr->recent_cpu / 4)
+		- (curr->nice * MK_FIXED * 2)) / MK_FIXED;
+	}
+}
+
+void
+periodic_priority(void){
+	struct thread *thread_needle;
+	struct list_elem *elem_needle, *temp_needle;
+
+	for(elem_needle = list_begin(&all_threads); elem_needle != list_end(&all_threads); elem_needle = temp_needle){
+		temp_needle = list_next(elem_needle);
+
+		thread_needle = list_entry(elem_needle, struct thread, all_elem);
+		if(thread_needle != idle_thread){
+			thread_needle->priority = ((PRI_MAX * MK_FIXED) - (thread_needle->recent_cpu / 4)
+			- (thread_needle->nice * MK_FIXED * 2)) / MK_FIXED;
+		}
+	}
 }
 
 /* Periodically calculating all threads' recent cpu */
@@ -570,7 +604,7 @@ periodic_recent_cpu(void){
 	struct thread *thread_needle;
 	struct list_elem *elem_needle, *temp_needle;
 
-	for(elem_needle = list_front(&all_threads); elem_needle != list_end(&all_threads); elem_needle = temp_needle){
+	for(elem_needle = list_begin(&all_threads); elem_needle != list_end(&all_threads); elem_needle = temp_needle){
 		temp_needle = list_next(elem_needle);
 
 		thread_needle = list_entry(elem_needle, struct thread, all_elem);
@@ -586,6 +620,7 @@ periodic_recent_cpu(void){
 void
 periodic_load_avg(void){
 	load_avg = ((59 * load_avg) + (num_ready_threads() * MK_FIXED)) / 60;
+	if(load_avg<0) load_avg = 0; 
 }
 
 /* round to nearest integer */
