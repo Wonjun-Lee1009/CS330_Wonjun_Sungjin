@@ -24,15 +24,15 @@
    Do not modify this value. */
 #define THREAD_BASIC 0xd42df210
 
-/* Make fixed-point to int */
-#define MK_FIXED 1<<14
-
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
 
 /* List of processes in THREAD_BLOCK state */
 static struct list blocked_list;
+
+/* List of all threads */
+static struct list all_threads;
 
 /* The fastest time  */
 static int64_t unblock_time_for_next;
@@ -74,6 +74,7 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+int round_to_nearest(int);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -155,7 +156,10 @@ void change_to_max_priority(void){
 	if(list_empty(&ready_list)==false){
 		priority_curr = thread_current()->priority;
 		priority_list = list_entry(list_front(&ready_list), struct thread, elem)->priority;
-		if(priority_curr < priority_list) thread_yield();
+		if(priority_curr < priority_list){
+			ASSERT(!intr_context());
+			thread_yield();
+		}
 	}
 }
 
@@ -254,6 +258,7 @@ thread_init (void) {
 	list_init (&ready_list);
 	list_init (&destruction_req);
 	list_init (&blocked_list);
+	list_init (&all_threads);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -429,6 +434,7 @@ void
 thread_exit (void) {
 	ASSERT (!intr_context ());
 
+	list_remove(&thread_current()->all_elem);
 #ifdef USERPROG
 	process_exit ();
 #endif
@@ -447,7 +453,7 @@ thread_yield (void) {
 	struct thread *curr = thread_current ();
 	enum intr_level old_level;
 
-	ASSERT (!intr_context ());
+	ASSERT (!intr_context());
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
@@ -465,8 +471,8 @@ thread_set_priority (int new_priority) {
 
 	/* If -mlfqs command is used in kernel,
 	this function returns current thread's priority */
-	if(thread_mlfqs != 0){
-		return thread_current() -> priority;
+	if(thread_mlfqs){
+		return;
 	}
 
 	int curr_pri;
@@ -504,7 +510,7 @@ void
 thread_set_nice (int nice UNUSED) {
 	/* TODO: Your implementation goes here */
 	thread_current() -> nice = nice;
-	thread_current()->priority = calc_curr_thread_pri();
+	calc_curr_thread_pri();
 	change_to_max_priority();
 }
 
@@ -532,51 +538,67 @@ thread_get_recent_cpu (void) {
 /* Calculate ready_threads (number of running & ready thread) */
 int
 num_ready_threads(void){
-	int cnt;
-	cnt = list_size(&ready_list);
-	return cnt;
+	if(thread_current()!=idle_thread) return list_size(&ready_list)+1;
+	return list_size(&ready_list);
 }
 
-/* Calculate current system's load average */
-int
-calc_curr_load_avg(void){
-	int update_load_avg = (59/60)*(2^14)*load_avg + (1/60)*(2^14)*num_ready_threads();
-	return update_load_avg;
-}
+// /* Calculate current system's load average */
+// int
+// calc_curr_load_avg(void){
+// 	int update_load_avg = (59/60)*(2^14)*load_avg + (1/60)*(2^14)*num_ready_threads();
+// 	return update_load_avg;
+// }
 
-/* Calculate current thread's recent cpu */
-int
-calc_curr_thread_recent_cpu(void){
+// /* Calculate current thread's recent cpu */
+// int
+// calc_curr_thread_recent_cpu(void){
 	
-}
+// }
 
 /* Calculate current thread's priority */
-int
+void
 calc_curr_thread_pri(void){
 	struct thread *curr;
-
 	curr = thread_current();
-	return ((PRI_MAX * MK_FIXED) - (curr->recent_cpu * MK_FIXED / 4)
+	thread_current()->priority = ((PRI_MAX * MK_FIXED) - (curr->recent_cpu / 4)
 	 - (curr->nice * MK_FIXED * 2)) / MK_FIXED;
 }
 
 /* Periodically calculating all threads' recent cpu */
 void
 periodic_recent_cpu(void){
+	struct thread *thread_needle;
+	struct list_elem *elem_needle, *temp_needle;
 
+	for(elem_needle = list_front(&all_threads); elem_needle != list_end(&all_threads); elem_needle = temp_needle){
+		temp_needle = list_next(elem_needle);
+
+		thread_needle = list_entry(elem_needle, struct thread, all_elem);
+		if(thread_needle != idle_thread){
+			thread_needle->recent_cpu = ((int64_t)((((int64_t)2 * load_avg) * MK_FIXED) / ((int64_t)2 * load_avg + MK_FIXED))
+			* thread_needle->recent_cpu) / MK_FIXED + (thread_needle->nice * MK_FIXED);
+		}
+		//(2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice
+	}
 }
 
 /* Periodically calculating load avg of current system */
 void
 periodic_load_avg(void){
-
+	load_avg = ((59 * load_avg) + (num_ready_threads() * MK_FIXED)) / 60;
 }
 
 /* round to nearest integer */
 int
 round_to_nearest(int num){
-	if(num >= 0) return (num + MK_FIXED / 2) / MK_FIXED;
-	else return (num - MK_FIXED / 2) / MK_FIXED;
+	if(num >= 0) return (num + (MK_FIXED / 2)) / MK_FIXED;
+	else return (num - (MK_FIXED / 2)) / MK_FIXED;
+}
+
+/* increase current_thread's recent_cpu */
+void
+inc_curr_recent_cpu(void){
+	if(thread_current() != idle_thread) thread_current()->recent_cpu += MK_FIXED;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -647,6 +669,8 @@ init_thread (struct thread *t, const char *name, int priority) {
 	/* Advanced scheduler */
 	t->nice = 0;
 	t->recent_cpu = 0;
+
+	list_push_back(&all_threads, &t->all_elem);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

@@ -28,6 +28,9 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/* Make fixed-point to int */
+#define MK_FIXED 1<<14
+
 /* A kernel thread or user process.
  *
  * Each thread structure is stored in its own 4 kB page.  The
@@ -98,6 +101,7 @@ struct thread {
 	struct lock *req_lock;				/* lock which is requested */
 	struct list donates;				/* list of threads which donate their priority to this thread */
 	struct list_elem donates_elem;		/* list_elem for donates list */
+	struct list_elem all_elem;			/* list_elem for all_threads */
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
@@ -169,9 +173,10 @@ int thread_get_load_avg (void);
 int num_ready_threads(void);
 int calc_curr_load_avg(void);
 int calc_curr_thread_recent_cpu(void);
-int calc_curr_thread_pri(void);
+void calc_curr_thread_pri(void);
 void periodic_recent_cpu(void);
 void periodic_load_avg(void);
+void inc_curr_recent_cpu(void);
 
 void do_iret (struct intr_frame *tf);
 
