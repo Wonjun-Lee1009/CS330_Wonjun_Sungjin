@@ -24,6 +24,9 @@
    Do not modify this value. */
 #define THREAD_BASIC 0xd42df210
 
+/* Make fixed-point to int */
+#define MK_FIXED 1<<14
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -267,7 +270,7 @@ thread_start (void) {
 	struct semaphore idle_started;
 	sema_init (&idle_started, 0);
 	thread_create ("idle", PRI_MIN, idle, &idle_started);
-
+	load_avg = 0;
 	/* Start preemptive thread scheduling. */
 	intr_enable ();
 
@@ -501,7 +504,7 @@ void
 thread_set_nice (int nice UNUSED) {
 	/* TODO: Your implementation goes here */
 	thread_current() -> nice = nice;
-	calc_curr_thread_pri(thread_current());
+	thread_current()->priority = calc_curr_thread_pri();
 	change_to_max_priority();
 }
 
@@ -524,7 +527,7 @@ thread_get_load_avg (void) {
 int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
-	int temp = calc_curr_thread_recent_cpu(thread_current());
+	int temp = calc_curr_thread_recent_cpu();
 	return temp*100/2^14;
 }
 
@@ -552,7 +555,11 @@ calc_curr_thread_recent_cpu(void){
 /* Calculate current thread's priority */
 int
 calc_curr_thread_pri(void){
+	struct thread *curr;
 
+	curr = thread_current();
+	return ((PRI_MAX * MK_FIXED) - (curr->recent_cpu * MK_FIXED / 4)
+	 - (curr->nice * MK_FIXED * 2)) / MK_FIXED;
 }
 
 /* Periodically calculating all threads' recent cpu */
