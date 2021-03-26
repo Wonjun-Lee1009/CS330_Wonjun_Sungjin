@@ -519,16 +519,14 @@ thread_get_nice (void) {
 int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
-	load_avg = calc_curr_load_avg();
-	return load_avg*100/2^14;
+	return round_to_nearest(load_avg*100);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
-	int temp = calc_curr_thread_recent_cpu();
-	return temp*100/2^14;
+	return round_to_nearest(thread_current()->recent_cpu*100);
 }
 
 /* Calculate ready_threads (number of running & ready thread) */
@@ -549,7 +547,7 @@ calc_curr_load_avg(void){
 /* Calculate current thread's recent cpu */
 int
 calc_curr_thread_recent_cpu(void){
-
+	
 }
 
 /* Calculate current thread's priority */
@@ -572,6 +570,13 @@ periodic_recent_cpu(void){
 void
 periodic_load_avg(void){
 
+}
+
+/* round to nearest integer */
+int
+round_to_nearest(int num){
+	if(num >= 0) return (num + MK_FIXED / 2) / MK_FIXED;
+	else return (num - MK_FIXED / 2) / MK_FIXED;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
