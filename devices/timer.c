@@ -127,6 +127,17 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick();
 	if(ticks >= get_unblock_time_for_next()) make_thread_unblock(ticks);
+	/* Advanced scheduler */
+	if(thread_mlfqs){
+		thread_current()->recent_cpu++;
+		if(ticks % TIMER_FREQ == 0){
+			periodic_recent_cpu();
+			periodic_load_avg();
+		}
+		if(ticks % 4 == 0){
+			calc_curr_thread_pri();
+		}
+	}
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

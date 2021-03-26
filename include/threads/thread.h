@@ -102,6 +102,10 @@ struct thread {
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
+	/* Added for Advanced scheduler */
+	int nice;
+	int recent_cpu;
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
@@ -156,10 +160,18 @@ void thread_yield (void);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
+/* Advanced scheduler */
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+int num_ready_threads(void);
+int calc_curr_load_avg(void);
+int calc_curr_thread_recent_cpu(void);
+int calc_curr_thread_pri(void);
+void periodic_recent_cpu(void);
+void periodic_load_avg(void);
 
 void do_iret (struct intr_frame *tf);
 

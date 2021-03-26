@@ -34,6 +34,9 @@ static struct list blocked_list;
 /* The fastest time  */
 static int64_t unblock_time_for_next;
 
+/* Advaced scheduler - load_avg */
+int load_avg;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -456,6 +459,13 @@ void
 thread_set_priority (int new_priority) {
 	/* thread_current ()->priority = new_priority;
 	change_to_max_priority(); */
+
+	/* If -mlfqs command is used in kernel,
+	this function returns current thread's priority */
+	if(thread_mlfqs != 0){
+		return thread_current() -> priority;
+	}
+
 	int curr_pri;
 
 	curr_pri = thread_current()->priority;
@@ -490,27 +500,71 @@ thread_get_priority (void) {
 void
 thread_set_nice (int nice UNUSED) {
 	/* TODO: Your implementation goes here */
+	thread_current() -> nice = nice;
+	calc_curr_thread_pri(thread_current());
+	change_to_max_priority();
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+	return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+	load_avg = calc_curr_load_avg();
+	return load_avg*100/2^14;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+	int temp = calc_curr_thread_recent_cpu(thread_current());
+	return temp*100/2^14;
+}
+
+/* Calculate ready_threads (number of running & ready thread) */
+int
+num_ready_threads(void){
+	int cnt;
+	cnt = list_size(&ready_list);
+	return cnt;
+}
+
+/* Calculate current system's load average */
+int
+calc_curr_load_avg(void){
+	int update_load_avg = (59/60)*(2^14)*load_avg + (1/60)*(2^14)*num_ready_threads();
+	return update_load_avg;
+}
+
+/* Calculate current thread's recent cpu */
+int
+calc_curr_thread_recent_cpu(void){
+
+}
+
+/* Calculate current thread's priority */
+int
+calc_curr_thread_pri(void){
+
+}
+
+/* Periodically calculating all threads' recent cpu */
+void
+periodic_recent_cpu(void){
+
+}
+
+/* Periodically calculating load avg of current system */
+void
+periodic_load_avg(void){
+
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -578,6 +632,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->pri_origin = priority;
 	list_init(&t->donates);
 	t->req_lock = NULL;
+	/* Advanced scheduler */
+	t->nice = 0;
+	t->recent_cpu = 0;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
