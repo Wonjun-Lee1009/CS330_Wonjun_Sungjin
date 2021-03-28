@@ -29,7 +29,7 @@ typedef int tid_t;
 #define PRI_MAX 63                      /* Highest priority. */
 
 /* Make fixed-point to int */
-#define MK_FIXED 1<<14
+#define MK_FIXED (1<<14)
 
 /* A kernel thread or user process.
  *
@@ -174,6 +174,7 @@ int num_ready_threads(void);
 int calc_curr_load_avg(void);
 int calc_curr_thread_recent_cpu(void);
 void calc_curr_thread_pri(void);
+void periodic_priority(void);
 void periodic_recent_cpu(void);
 void periodic_load_avg(void);
 void inc_curr_recent_cpu(void);
