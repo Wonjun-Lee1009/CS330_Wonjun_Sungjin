@@ -423,7 +423,7 @@ load (const char *file_name, struct intr_frame *if_) {
     
     char fn_copy[256];
     char *argv[256]; // prolly need to edit it, if file_name length is longer than 256
-    int argc=0, i;
+    int argc=0;
 
     strlcpy(fn_copy, file_name, strlen(file_name)+1);
     char *token_save;
@@ -435,35 +435,35 @@ load (const char *file_name, struct intr_frame *if_) {
         argc++;
     }
 
-    uintptr_t address[argc];
+    uintptr_t address[256];
     /*put argv*/
     for(i=argc-1; i>=0; i--){
         if_->rsp -= (strlen(argv[i])+1);
-        memcpy(if_->rsp, argv[i], strlen(argv[i])+1);
+        strlcpy(if_->rsp, argv[i], strlen(argv[i])+1);
         address[i] = if_->rsp;
     }
-
+	
     /*align*/
     if(if_->rsp%8 != 0){
         while(if_->rsp%8 != 0){
             if_->rsp--;
         }
-        *(if_->rsp) = 0;
+        *(int *)(if_->rsp) = 0;
     }
 
     /*ready for putting address*/
     if_->rsp -= 8;
-    *(if_->rsp) = 0;
+    *(int *)(if_->rsp) = 0;
 
     /*put address*/
     for(i=argc-1; i>=0; i--){
         if_->rsp -= 8;
-        *(if_->rsp) = address[i];
+        *(uintptr_t *)(if_->rsp) = address[i];
     }
 
     /*stacking finished*/
     if_->rsp -= 8;
-    *(if_->rsp) = 0;    
+    *(int *)(if_->rsp) = 0;    
 
     success = true;
 
