@@ -334,6 +334,32 @@ load (const char *file_name, struct intr_frame *if_) {
     bool success = false;
     int i;
 
+	char *fn_copy;
+	char fn_copy2[128];
+
+	fn_copy = palloc_get_page (0);
+	if (fn_copy == NULL){
+		palloc_free_page (fn_copy);
+		goto done;
+	}
+	strlcpy (fn_copy, file_name, PGSIZE);
+    strlcpy(fn_copy2, file_name, strlen(file_name)+1);
+    
+	char *rsptr, *token;
+	char **argv;
+    int argc=0;
+    uintptr_t *address;
+
+    char *token_save1, *token_save2;
+
+    token = strtok_r(fn_copy, " ", &token_save1);
+    argc++;
+    while(token!=NULL){
+        token = strtok_r(NULL, " ", &token_save1);
+        argc++;
+    }
+	argc--;
+
     /* Allocate and activate page directory. */
     t->pml4 = pml4_create ();
     if (t->pml4 == NULL)
@@ -341,12 +367,12 @@ load (const char *file_name, struct intr_frame *if_) {
     process_activate (thread_current ());
 
     /* Open executable file. */
-    file = filesys_open (file_name);
+    file = filesys_open (fn_copy);
     if (file == NULL) {
         printf ("load: %s: open failed\n", file_name);
         goto done;
     }
-
+	palloc_free_page (fn_copy);
     /* Read and verify executable header. */
     if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
             || memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
@@ -411,39 +437,20 @@ load (const char *file_name, struct intr_frame *if_) {
                 break;
         }
     }
-
     /* Set up stack. */
     if (!setup_stack (if_))
         goto done;
 
+	
     /* Start address. */
     if_->rip = ehdr.e_entry;
 
     /* TODO: Your code goes here.
     * TODO: Implement argument passing (see project2/argument_passing.html). */
 
-	char fn_copy[256], fn_copy2[256];
-    strlcpy(fn_copy, file_name, strlen(file_name)+1);
-    strlcpy(fn_copy2, file_name, strlen(file_name)+1);
-    
-	char *rsptr, *token;
-	char **argv;
-    int argc=0;
-    uint32_t *address;
-
 	rsptr = (char *)if_->rsp;
-    char *token_save1, *token_save2;
-
-    token = strtok_r(fn_copy, " ", &token_save1);
-    argc++;
-    while(token!=NULL){
-        token = strtok_r(NULL, " ", &token_save1);
-        argc++;
-    }
-	argc--;
-
 	argv = (char **)malloc(sizeof(char *) * argc); // TODO : need to free argv
-	address = (uint32_t)malloc(sizeof(uint32_t *) * argc);
+	address = (uintptr_t)malloc(sizeof(uintptr_t *) * argc);
 
 	token = strtok_r(fn_copy2, " ", &token_save2);
 	for(i=0; i<argc; i++){
@@ -455,7 +462,7 @@ load (const char *file_name, struct intr_frame *if_) {
     for(i=argc-1; i>=0; i--){
         rsptr -= (strlen(argv[i])+1);
         strlcpy(rsptr, argv[i], strlen(argv[i])+1);
-        address[i] = (uint32_t)rsptr;
+        address[i] = rsptr;
     }
 	
     /*align*/
@@ -463,7 +470,7 @@ load (const char *file_name, struct intr_frame *if_) {
         while((int64_t)rsptr%8 != 0){
             rsptr--;
         }
-        //*(int *)(rsptr) = 0;
+        *(int *)(rsptr) = 0;
     }
 
     /*ready for putting address*/
@@ -473,12 +480,12 @@ load (const char *file_name, struct intr_frame *if_) {
     /*put address*/
     for(i=argc-1; i>=0; i--){
         rsptr -= 8;
-        *(uint32_t *)(rsptr) = address[i];
+        *rsptr = address[i];
     }
 
 	/*put value to $rsi and $rdi*/
-	*(uintptr_t *)(if_->R.rsi) = (uintptr_t)rsptr;
-	*(int *)(if_->R.rdi) = argc;
+	if_->R.rsi = (uintptr_t)rsptr;
+	if_->R.rdi = argc;
 	// if_->rsp -= 8;
 	// *(uint64_t *)(if_->rsp) = if_->R.rsi;
 	// if_->rsp -= 8;
