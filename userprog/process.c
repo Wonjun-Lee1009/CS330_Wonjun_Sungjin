@@ -208,6 +208,7 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+	while(1);
 	return -1;
 }
 
@@ -424,6 +425,7 @@ load (const char *file_name, struct intr_frame *if_) {
     char fn_copy[256];
     char *argv[256]; // prolly need to edit it, if file_name length is longer than 256
     int argc=0;
+    uintptr_t address[256];
 
     strlcpy(fn_copy, file_name, strlen(file_name)+1);
     char *token_save;
@@ -431,11 +433,11 @@ load (const char *file_name, struct intr_frame *if_) {
     argv[0] = strtok_r(fn_copy, " ", &token_save);
     argc++;
     while(argv[argc-1]!=NULL){
-        argv[argc] = strtok_r(fn_copy, " ", &token_save);
+        argv[argc] = strtok_r(NULL, " ", &token_save);
         argc++;
     }
+	argc--;
 
-    uintptr_t address[256];
     /*put argv*/
     for(i=argc-1; i>=0; i--){
         if_->rsp -= (strlen(argv[i])+1);
@@ -461,9 +463,19 @@ load (const char *file_name, struct intr_frame *if_) {
         *(uintptr_t *)(if_->rsp) = address[i];
     }
 
+	/*put value to $rsi and $rdi*/
+	*(uintptr_t *)(if_->R.rsi) = if_->rsp;
+	*(int *)(if_->R.rdi) = argc;
+	// if_->rsp -= 8;
+	// *(uint64_t *)(if_->rsp) = if_->R.rsi;
+	// if_->rsp -= 8;
+	// *(int *)(if_->rsp) = argc;
+
     /*stacking finished*/
     if_->rsp -= 8;
-    *(int *)(if_->rsp) = 0;    
+    *(int *)(if_->rsp) = 0;
+
+	hex_dump(if_->rsp, if_->rsp, USER_STACK - if_->rsp, true);    
 
     success = true;
 
