@@ -157,8 +157,7 @@ void change_to_max_priority(void){
 		priority_curr = thread_current()->priority;
 		priority_list = list_entry(list_front(&ready_list), struct thread, elem)->priority;
 		if(priority_curr < priority_list){
-			ASSERT(!intr_context());
-			thread_yield();
+			if(!intr_context()) thread_yield();
 		}
 	}
 }

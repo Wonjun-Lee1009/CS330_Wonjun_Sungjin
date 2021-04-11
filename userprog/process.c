@@ -443,6 +443,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	argc--;
 
 	argv = (char **)malloc(sizeof(char *) * argc); // TODO : need to free argv
+	address = (uint32_t)malloc(sizeof(uint32_t *) * argc);
 
 	token = strtok_r(fn_copy2, " ", &token_save2);
 	for(i=0; i<argc; i++){
