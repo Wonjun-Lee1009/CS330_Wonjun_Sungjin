@@ -334,15 +334,16 @@ load (const char *file_name, struct intr_frame *if_) {
     bool success = false;
     int i;
 
-	char *fn_copy;
+	char fn_copy[128];
 	char fn_copy2[128];
 
-	fn_copy = palloc_get_page (0);
-	if (fn_copy == NULL){
-		palloc_free_page (fn_copy);
-		goto done;
-	}
-	strlcpy (fn_copy, file_name, PGSIZE);
+	// fn_copy = palloc_get_page (0);
+	// if (fn_copy == NULL){
+	// 	palloc_free_page (fn_copy);
+	// 	goto done;
+	// }
+	// strlcpy (fn_copy, file_name, PGSIZE);
+    strlcpy(fn_copy, file_name, strlen(file_name)+1);
     strlcpy(fn_copy2, file_name, strlen(file_name)+1);
     
 	char *rsptr, *token;
@@ -372,7 +373,7 @@ load (const char *file_name, struct intr_frame *if_) {
         printf ("load: %s: open failed\n", file_name);
         goto done;
     }
-	palloc_free_page (fn_copy);
+	//palloc_free_page (fn_copy);
     /* Read and verify executable header. */
     if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
             || memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
@@ -459,6 +460,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	}
 
     /*put argv*/
+	/* work well */
     for(i=argc-1; i>=0; i--){
         rsptr -= (strlen(argv[i])+1);
         strlcpy(rsptr, argv[i], strlen(argv[i])+1);
@@ -466,21 +468,21 @@ load (const char *file_name, struct intr_frame *if_) {
     }
 	
     /*align*/
-    if((int64_t)rsptr%8 != 0){
-        while((int64_t)rsptr%8 != 0){
+    if((uint64_t)rsptr%8 != 0){
+        while((uint64_t)rsptr%8 != 0){
             rsptr--;
         }
-        *(int *)(rsptr) = 0;
+        *rsptr = 0;
     }
 
     /*ready for putting address*/
     rsptr -= 8;
-    *(int *)(rsptr) = 0;
-
-    /*put address*/
+    *rsptr = 0;
+	
+    /*put address - should use ((char **)rsptr)[i] = address[i] */
     for(i=argc-1; i>=0; i--){
         rsptr -= 8;
-        *rsptr = address[i];
+        *((char **)rsptr) = address[i];
     }
 
 	/*put value to $rsi and $rdi*/
@@ -493,7 +495,7 @@ load (const char *file_name, struct intr_frame *if_) {
 
     /*stacking finished*/
     rsptr -= 8;
-    *(int *)(rsptr) = 0;
+    *rsptr = 0;
 
 	if_->rsp = (uintptr_t)rsptr;
 	free(argv);
