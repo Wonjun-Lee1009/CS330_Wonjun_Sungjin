@@ -1,0 +1,38 @@
+Kernel command line: -q -f put multi-child-fd put sample.txt put child-close run multi-child-fd
+0 ~ 9fc00 1
+100000 ~ 13e0000 1
+Pintos booting with: 
+	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
+	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
+Calibrating timer...  71,987,200 loops/s.
+hd0:0: detected 321 sector (160 kB) disk, model "QEMU HARDDISK", serial "QM00001"
+hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
+hd1:0: detected 220 sector (110 kB) disk, model "QEMU HARDDISK", serial "QM00003"
+Formatting file system...done.
+Boot complete.
+Putting 'multi-child-fd' into the file system...
+Putting 'sample.txt' into the file system...
+Putting 'child-close' into the file system...
+Executing 'multi-child-fd':
+(multi-child-fd) begin
+(multi-child-fd) open "sample.txt"
+Interrupt 0x0d (#GP General Protection Exception) at rip=8004208179
+ cr2=0000000000000000 error=               0
+rax 0000000000000000 rbx 0000000000000000 rcx 0000000000000000 rdx 0000000000000000
+rsp 000000800423ff80 rbp 0000000000000000 rsi 0000000000000000 rdi 0000000000000000
+rip 0000008004208179 r8 0000000000000000  r9 0000000000000000 r10 0000000000000000
+r11 0000000000000000 r12 0000000000000000 r13 0000000000000000 r14 0000000000000000
+r15 0000000000000000 rflags 00000202
+es: 0000 ds: 0000 cs: 0008 ss: 0010
+Kernel PANIC at ../../userprog/exception.c:97 in kill(): Kernel bug - unexpected interrupt in kernel
+Call stack: 0x8004218423 0x800421d06f 0x80042094e3.
+The `backtrace' program can make call stacks useful.
+Read "Backtraces" in the "Debugging Tools" chapter
+of the Pintos documentation for more information.
+Timer: 115 ticks
+Thread: 71 idle ticks, 35 kernel ticks, 9 user ticks
+hd0:0: 0 reads, 0 writes
+hd0:1: 148 reads, 488 writes
+hd1:0: 220 reads, 0 writes
+Console: 1782 characters output
+Key

@@ -123,7 +123,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
-	newpage = palloc_get_page(PAL_USER);
+	newpage = palloc_get_page(PAL_USER|PAL_ZERO);
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
@@ -179,7 +179,8 @@ __do_fork (void *aux) {
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 	int i;
-	for(i=0; i<128; i++){
+	for(i=3; i<128; i++){
+		if(parent->fl_descr[i] == NULL) break;
 		current->fl_descr[i] = file_duplicate(parent->fl_descr[i]);
 	}
 	sema_up(&current->sema_load);

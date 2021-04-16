@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
+#include "threads/palloc.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
@@ -155,9 +156,9 @@ fork (const char *thread_name){
 int
 exec (const char *cmd_line){
 	char *cmd_copy;
-    cmd_copy = palloc_get_page(0);
+    cmd_copy = palloc_get_page(PAL_ZERO);
     memcpy(cmd_copy, cmd_line, strlen(cmd_line));
-	return process_exec(cmd_line);
+	return process_exec(cmd_copy);
 }
 
 int
@@ -168,14 +169,14 @@ wait (tid_t pid){
 bool
 create (const char *file, unsigned initial_size){
 	if(!is_user_vaddr(file) || file == NULL) exit(-1);
-	if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
+	// if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
 	return filesys_create(file, initial_size);
 }
 
 bool
 remove (const char *file){
 	if(!is_user_vaddr(file) || file == NULL) exit(-1);
-	if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
+	// if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
 	return filesys_remove(file);
 }
 
@@ -187,7 +188,7 @@ open (const char *file){
 
 	curr = thread_current();
 	if(!is_user_vaddr(file) || file == NULL) exit(-1);
-	if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
+	// if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
 	lock_acquire(&file_sys_lock);
 	opened_file = filesys_open(file);
 	if(opened_file == NULL){
