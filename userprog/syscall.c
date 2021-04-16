@@ -166,12 +166,14 @@ wait (tid_t pid){
 bool
 create (const char *file, unsigned initial_size){
 	if(!is_user_vaddr(file) || file == NULL) exit(-1);
+	if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
 	return filesys_create(file, initial_size);
 }
 
 bool
 remove (const char *file){
 	if(!is_user_vaddr(file) || file == NULL) exit(-1);
+	if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
 	return filesys_remove(file);
 }
 
@@ -183,6 +185,7 @@ open (const char *file){
 
 	curr = thread_current();
 	if(!is_user_vaddr(file) || file == NULL) exit(-1);
+	if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
 	lock_acquire(&file_sys_lock);
 	opened_file = filesys_open(file);
 	if(opened_file == NULL){
@@ -276,6 +279,7 @@ close (int fd){
 	struct thread *curr = thread_current();
 	struct file *curr_file = curr->fl_descr[fd];
 
+	// if(pml4_get_page(thread_current()->pml4, curr_file) == NULL) exit(-1);
 	if(curr_file == NULL) exit(-1);
 	curr_file = NULL;
 	file_close(curr_file);
