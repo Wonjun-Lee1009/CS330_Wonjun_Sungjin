@@ -353,6 +353,11 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	t->parent = thread_current();
+	t->exit_status = -1;
+	sema_init(&t->sema_load, 0);
+	sema_init(&t->sema_child_lock, 0);
+
 	/* Add to run queue. */
 	thread_unblock (t);
 
@@ -703,6 +708,14 @@ init_thread (struct thread *t, const char *name, int priority) {
 	/* Advanced scheduler */
 	t->nice = 0;
 	t->recent_cpu = 0;
+
+	sema_init(&t->sema_child, 0);
+	list_init(&t->child_process);
+	t->parent = running_thread();
+	list_push_back(&running_thread()->child_process, &t->child_process_elem);
+	for(i=0; i<128; i++){
+		t->fl_descr[i]=NULL;
+	}	
 
 	list_push_back(&all_threads, &t->all_elem);
 }

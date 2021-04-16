@@ -68,21 +68,65 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 
 	uintptr_t *rsptr = f->rsp;
+	if(!is_user_vaddr(rsptr)) exit(-1);
 	switch(*rsptr){
 		case SYS_HALT:
+			halt();
+			break;
 		case SYS_EXIT:
+			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			exit((int)*(uintptr_t *)(rsptr+8));
+			break;
 		case SYS_FORK:
+			f->R.rax = fork(f, rsptr+8);
+			break;
 		case SYS_EXEC:
+			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			f->R.rax = exec((const char *)(rsptr+8));
+			break;
 		case SYS_WAIT:
+			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			f->R.rax = wait((pid_t)*(uintptr_t *)(rsptr+8));
+			break;
 		case SYS_CREATE:
+			if (!is_user_vaddr((rsptr+32))) exit(-1);
+			if (!is_user_vaddr((rsptr+40))) exit(-1);
+			f->R.rax = create((const char *)*(uintptr_t *)(rsptr+32),(unsigned)*(uintptr_t *)(rsptr+40));
+			break;
 		case SYS_REMOVE:
+			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			f->R.rax = remove((const char *)*(uintptr_t *)(rsptr+8));
+			break;
 		case SYS_OPEN:
+			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			f->R.rax = open((const char *)*(uintptr_t *)(rsptr+8));
+			break;
 		case SYS_FILESIZE:
+			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			f->R.rax = filesize((int)*(uintptr_t *)(rsptr+8));
+			break;
 		case SYS_READ:
+			if (!is_user_vaddr((rsptr+40))) exit(-1);
+			f->R.rax = read((int)*(uintptr_t *)(rsptr+40), (void *)*(uintptr_t *)(rsptr+48), (unsigned *)*(uintptr_t *)(rsptr+56));
+			break;
 		case SYS_WRITE:
+			if (!is_user_vaddr((rsptr+40))) exit(-1);
+			if (!is_user_vaddr((rsptr+48))) exit(-1);
+			if (!is_user_vaddr((rsptr+56))) exit(-1);
+			f->R.rax = write((int)*(uintptr_t *)(rsptr+40), (void *)*(uintptr_t *)(rsptr+48), (unsigned *)*(uintptr_t *)(rsptr+56));
+			break;
 		case SYS_SEEK:
+			if (!is_user_vaddr((rsptr+32))) exit(-1);
+			if (!is_user_vaddr((rsptr+40))) exit(-1);
+			seek((int)*(uintptr_t *)(rsptr+32), (unsigned)*(uintptr_t *)(rsptr+40));
+			break;
 		case SYS_TELL:
+			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			f->R.rax = tell((int)*(uintptr_t *)(rsptr+8));
+			break;
 		case SYS_CLOSE:
+			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			close((int)*(uintptr_t *)(rsptr+8));
 	}
 	printf ("system call!\n");
 	thread_exit ();
@@ -100,15 +144,27 @@ exit(int status){
 	for (int i = 3; i < 128; i++){
 		if (thread_current()->fl_descr[i] != NULL) close(i);
 	}
+	thread_exit();
 }
 
 pid_t
 fork (const char *thread_name){
-
+	pid_t child_pid;
+	struct thread *curr;
+	struct intr_frame *user_tf;
+	
+	curr = thread_current();
+	user_tf = &(curr->f_tf);
+	child_pid = process_fork(curr, user_tf);
+	sema_down(&get_child_process(child_pid)->sema_load);
+	return child_pid;
 }
 
 int
 exec (const char *cmd_line){
+	char *cmd_copy;
+    cmd_copy = palloc_get_page(0);
+    memcpy(cmd_copy, cmd_line, strlen(cmd_line));
 	return process_exec(cmd_line);
 }
 
@@ -119,19 +175,37 @@ wait (pid_t pid){
 
 bool
 create (const char *file, unsigned initial_size){
-	if(!is_user_vaddr(file)) exit(-1);
+	if(!is_user_vaddr(file) || file == NULL) exit(-1);
 	return filesys_create(file, initial_size);
 }
 
 bool
 remove (const char *file){
-	if(!is_user_vaddr(file)) exit(-1);
+	if(!is_user_vaddr(file) || file == NULL) exit(-1);
 	return filesys_remove(file);
 }
 
 int
 open (const char *file){
+	struct thread *curr;
+	struct file *opened_file;
+	int ret;
 
+	curr = thread_current();
+	if(!is_user_vaddr(file) || file == NULL) exit(-1);
+	lock_acquire(&file_sys_lock);
+	opened_file = filesys_open(file);
+	if(opened_file == NULL){
+		ret = -1;
+	}
+	else{
+		ret = 3;
+		while(curr->fl_descr[ret] != NULL) ret++;
+		if (strcmp(curr->name, file) == 0) file_deny_write(opened_file);
+		curr->fl_descr[ret] = opened_file;
+	}
+	lock_release(&file_sys_lock);
+	return ret;
 }
 
 int
@@ -151,7 +225,7 @@ read (int fd, void *buffer, unsigned size){
 	lock_acquire(&file_sys_lock);
 
 	if(fd == 0){
-		while(((char *)buffer)+ret==NULL) ret++;
+		while(((char *)buffer)+ret == NULL) ret++;
 	}
 	else if(fd>2){
 		struct thread *curr = thread_current();
@@ -167,9 +241,13 @@ read (int fd, void *buffer, unsigned size){
 int
 write (int fd, const void *buffer, unsigned size){
 	int ret = -1;
+
+	if(!is_user_vaddr(buffer)) exit(-1);
+	lock_acquire(&file_sys_lock);
+
 	if(fd == 1){
 		putbuf(buffer, size);
-		ret = length;
+		ret = size;
 	}
 	else if(fd>2){
 		struct thread *curr = thread_current();
