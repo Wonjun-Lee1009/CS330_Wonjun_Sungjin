@@ -266,7 +266,7 @@ process_exit (void) {
 	 * TODO: We recommend you to implement process resource cleanup here. */
 	process_cleanup ();
 	sema_up(&curr->sema_child);
-	sema_down(&curr->sema_child_lock);
+	// sema_down(&curr->sema_child_lock);
 }
 
 /* Free the current process's resources. */

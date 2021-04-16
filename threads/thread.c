@@ -446,6 +446,7 @@ thread_exit (void) {
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
 	intr_disable ();
+    sema_up(&thread_current()->sema_child_lock);
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();
 }

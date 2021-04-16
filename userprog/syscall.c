@@ -59,7 +59,9 @@ syscall_init (void) {
 	write_msr(MSR_SYSCALL_MASK,
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 	lock_init(&file_sys_lock);
+	// PANIC("fuck");
 	intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+	// PANIC("fuck");
 }
 
 /* The main system call interface */
@@ -128,6 +130,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			break;
 		case SYS_CLOSE:
 			// if (!is_user_vaddr((rsptr+8))) exit(-1);
+			// PANIC("%d\n", f->R.rax);
 			close((int)*(uintptr_t *)(rsptr+8));
 			break;
 		default:
@@ -246,7 +249,6 @@ int
 write (int fd, const void *buffer, unsigned size){
 	int ret = -1;
 
-	PANIC("%d\n", fd);
 	if(!is_user_vaddr(buffer)) exit(-1);
 	lock_acquire(&file_sys_lock);
 
