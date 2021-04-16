@@ -18,9 +18,9 @@ void syscall_handler (struct intr_frame *);
 
 void halt (void);
 void exit (int status);
-pid_t fork (const char *thread_name);
+tid_t fork (const char *thread_name);
 int exec (const char *cmd_line);
-int wait (pid_t pid);
+int wait (tid_t pid);
 bool create (const char *file, unsigned initial_size);
 bool remove (const char *file);
 int open (const char *file);
@@ -67,69 +67,73 @@ void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 
-	uintptr_t *rsptr = f->rsp;
+	char *rsptr = f->rsp;
 	if(!is_user_vaddr(rsptr)) exit(-1);
-	switch(*rsptr){
+	// PANIC("%d %d %d %d\n\n", f->rsp, f->R.rax, f->R.rsi, f->R.rdx);
+	switch(f->R.rax){
 		case SYS_HALT:
 			halt();
 			break;
 		case SYS_EXIT:
-			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			// if (!is_user_vaddr((rsptr+8))) exit(-1);
 			exit((int)*(uintptr_t *)(rsptr+8));
 			break;
 		case SYS_FORK:
-			f->R.rax = fork(f, rsptr+8);
+			f->R.rax = fork(rsptr+8);
 			break;
 		case SYS_EXEC:
-			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			// if (!is_user_vaddr((rsptr+8))) exit(-1);
 			f->R.rax = exec((const char *)(rsptr+8));
 			break;
 		case SYS_WAIT:
-			if (!is_user_vaddr((rsptr+8))) exit(-1);
-			f->R.rax = wait((pid_t)*(uintptr_t *)(rsptr+8));
+			// if (!is_user_vaddr((rsptr+8))) exit(-1);
+			f->R.rax = wait((tid_t)*(uintptr_t *)(rsptr+8));
 			break;
 		case SYS_CREATE:
-			if (!is_user_vaddr((rsptr+32))) exit(-1);
-			if (!is_user_vaddr((rsptr+40))) exit(-1);
+			// if (!is_user_vaddr((rsptr+32))) exit(-1);
+			// if (!is_user_vaddr((rsptr+40))) exit(-1);
 			f->R.rax = create((const char *)*(uintptr_t *)(rsptr+32),(unsigned)*(uintptr_t *)(rsptr+40));
 			break;
 		case SYS_REMOVE:
-			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			// if (!is_user_vaddr((rsptr+8))) exit(-1);
 			f->R.rax = remove((const char *)*(uintptr_t *)(rsptr+8));
 			break;
 		case SYS_OPEN:
-			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			// if (!is_user_vaddr((rsptr+8))) exit(-1);
 			f->R.rax = open((const char *)*(uintptr_t *)(rsptr+8));
 			break;
 		case SYS_FILESIZE:
-			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			// if (!is_user_vaddr((rsptr+8))) exit(-1);
 			f->R.rax = filesize((int)*(uintptr_t *)(rsptr+8));
 			break;
 		case SYS_READ:
-			if (!is_user_vaddr((rsptr+40))) exit(-1);
+			// if (!is_user_vaddr((rsptr+40))) exit(-1);
 			f->R.rax = read((int)*(uintptr_t *)(rsptr+40), (void *)*(uintptr_t *)(rsptr+48), (unsigned *)*(uintptr_t *)(rsptr+56));
 			break;
 		case SYS_WRITE:
-			if (!is_user_vaddr((rsptr+40))) exit(-1);
-			if (!is_user_vaddr((rsptr+48))) exit(-1);
-			if (!is_user_vaddr((rsptr+56))) exit(-1);
-			f->R.rax = write((int)*(uintptr_t *)(rsptr+40), (void *)*(uintptr_t *)(rsptr+48), (unsigned *)*(uintptr_t *)(rsptr+56));
+			// if (!is_user_vaddr((rsptr+40))) exit(-1);
+			// if (!is_user_vaddr((rsptr+48))) exit(-1);
+			// if (!is_user_vaddr((rsptr+56))) exit(-1);
+			// PANIC("fuck! %d %d %d\n", f->R.rdi, f->R.rsi, f->R.rdx);
+			f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_SEEK:
-			if (!is_user_vaddr((rsptr+32))) exit(-1);
-			if (!is_user_vaddr((rsptr+40))) exit(-1);
+			// if (!is_user_vaddr((rsptr+32))) exit(-1);
+			// if (!is_user_vaddr((rsptr+40))) exit(-1);
 			seek((int)*(uintptr_t *)(rsptr+32), (unsigned)*(uintptr_t *)(rsptr+40));
 			break;
 		case SYS_TELL:
-			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			// if (!is_user_vaddr((rsptr+8))) exit(-1);
 			f->R.rax = tell((int)*(uintptr_t *)(rsptr+8));
 			break;
 		case SYS_CLOSE:
-			if (!is_user_vaddr((rsptr+8))) exit(-1);
+			// if (!is_user_vaddr((rsptr+8))) exit(-1);
 			close((int)*(uintptr_t *)(rsptr+8));
+			break;
+		default:
+			thread_exit ();
 	}
-	printf ("system call!\n");
-	thread_exit ();
+	// printf ("system call!\n");
 }
 
 void
@@ -147,9 +151,9 @@ exit(int status){
 	thread_exit();
 }
 
-pid_t
+tid_t
 fork (const char *thread_name){
-	pid_t child_pid;
+	tid_t child_pid;
 	struct thread *curr;
 	struct intr_frame *user_tf;
 	
@@ -169,7 +173,7 @@ exec (const char *cmd_line){
 }
 
 int
-wait (pid_t pid){
+wait (tid_t pid){
 	return process_wait(pid);
 }
 
@@ -242,6 +246,7 @@ int
 write (int fd, const void *buffer, unsigned size){
 	int ret = -1;
 
+	PANIC("%d\n", fd);
 	if(!is_user_vaddr(buffer)) exit(-1);
 	lock_acquire(&file_sys_lock);
 
@@ -256,7 +261,7 @@ write (int fd, const void *buffer, unsigned size){
 			lock_release(&file_sys_lock);
 			exit(-1);
 		}
-		if(curr_file->deny_write == true) file_deny_write(curr_file);
+		file_deny_write(curr_file);
 		ret = file_write(curr_file, buffer, size);
 	}
 	lock_release(&file_sys_lock);

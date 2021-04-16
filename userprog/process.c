@@ -58,7 +58,7 @@ process_create_initd (const char *file_name) {
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 
-	sema_down(&(get_child_process(tid)->sema_load));
+	sema_down(&get_child_process(tid)->sema_load);
 
     if (tid == TID_ERROR)
         palloc_free_page (fn_copy);
@@ -91,6 +91,7 @@ get_child_process(int pid){
 		if(child_thread->tid == pid) return child_thread;
 		elem_needle = list_next(elem_needle);
 	}
+	PANIC("fuck!");
     return NULL;
 }
 
@@ -245,7 +246,7 @@ process_wait (tid_t child_tid UNUSED) {
 
 	child_process = get_child_process(child_tid);
 	if(child_process == NULL) return -1;
-	sema_down(child_process->sema_child_lock);
+	sema_down(&child_process->sema_child_lock);
 	status = child_process->exit_status;
 
 	list_remove(&child_process->child_process_elem);
