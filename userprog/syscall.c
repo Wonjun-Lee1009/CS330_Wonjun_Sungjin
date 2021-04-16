@@ -141,12 +141,14 @@ tid_t
 fork (const char *thread_name){
 	tid_t child_pid;
 	struct thread *curr;
+	struct thread *child_th;
 	struct intr_frame *user_tf;
 	
 	curr = thread_current();
 	user_tf = &(curr->f_tf);
-	child_pid = process_fork(curr, user_tf);
-	sema_down(&get_child_process(child_pid)->sema_load);
+	child_pid = process_fork(thread_name, user_tf);
+	child_th = get_child_process(child_pid);
+	sema_down(&child_th->sema_load);
 	return child_pid;
 }
 
@@ -249,7 +251,7 @@ write (int fd, const void *buffer, unsigned size){
 			lock_release(&file_sys_lock);
 			exit(-1);
 		}
-		file_deny_write(curr_file);
+		//file_deny_write(curr_file);
 		ret = file_write(curr_file, buffer, size);
 	}
 	lock_release(&file_sys_lock);
