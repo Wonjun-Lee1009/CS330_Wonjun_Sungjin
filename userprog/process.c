@@ -58,7 +58,7 @@ process_create_initd (const char *file_name) {
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 
-	sema_down(&(get_child_process(tid)->seam_load));
+	sema_down(&(get_child_process(tid)->sema_load));
 
     if (tid == TID_ERROR)
         palloc_free_page (fn_copy);
@@ -79,7 +79,7 @@ initd (void *f_name) {
 	NOT_REACHED ();
 }
 
-pid_t
+struct thread *
 get_child_process(int pid){
 	struct thread *curr, *child_thread;
 	struct list_elem *elem_needle;
@@ -87,7 +87,7 @@ get_child_process(int pid){
 	curr = thread_current();
 	elem_needle = list_begin(&curr->child_process);
 	while(elem_needle != list_end(&curr->child_process)){
-		child_thread = list_entry(elem_needle, struct thread, child_elem);
+		child_thread = list_entry(elem_needle, struct thread, child_process_elem);
 		if(child_thread->tid == pid) return child_thread;
 		elem_needle = list_next(elem_needle);
 	}
@@ -99,7 +99,7 @@ get_child_process(int pid){
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
-    memcpy(&thread_current()->f_if, if_, sizeof(struct intr_frame));
+    memcpy(&thread_current()->f_tf, if_, sizeof(struct intr_frame));
 	return thread_create (name,
 			PRI_DEFAULT, __do_fork, thread_current ());
 }

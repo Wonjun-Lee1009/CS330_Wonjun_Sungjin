@@ -713,7 +713,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	list_init(&t->child_process);
 	t->parent = running_thread();
 	list_push_back(&running_thread()->child_process, &t->child_process_elem);
-	for(i=0; i<128; i++){
+	for(int i=0; i<128; i++){
 		t->fl_descr[i]=NULL;
 	}	
 
