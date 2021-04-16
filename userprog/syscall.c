@@ -77,61 +77,44 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			halt();
 			break;
 		case SYS_EXIT:
-			// if (!is_user_vaddr((rsptr+8))) exit(-1);
-			exit((int)*(uintptr_t *)(rsptr+8));
+			exit(f->R.rdi);
 			break;
 		case SYS_FORK:
-			f->R.rax = fork(rsptr+8);
+			f->R.rax = fork(f->R.rdi);
 			break;
 		case SYS_EXEC:
-			// if (!is_user_vaddr((rsptr+8))) exit(-1);
-			f->R.rax = exec((const char *)(rsptr+8));
+			if (!is_user_vaddr(f->R.rdi)) thread_exit();
+			f->R.rax = exec((const char *)f->R.rdi);
 			break;
 		case SYS_WAIT:
-			// if (!is_user_vaddr((rsptr+8))) exit(-1);
-			f->R.rax = wait((tid_t)*(uintptr_t *)(rsptr+8));
+			f->R.rax = wait(f->R.rdi);
 			break;
 		case SYS_CREATE:
-			// if (!is_user_vaddr((rsptr+32))) exit(-1);
-			// if (!is_user_vaddr((rsptr+40))) exit(-1);
-			f->R.rax = create((const char *)*(uintptr_t *)(rsptr+32),(unsigned)*(uintptr_t *)(rsptr+40));
+			f->R.rax = create(f->R.rdi, f->R.rsi);
 			break;
 		case SYS_REMOVE:
-			// if (!is_user_vaddr((rsptr+8))) exit(-1);
-			f->R.rax = remove((const char *)*(uintptr_t *)(rsptr+8));
+			f->R.rax = remove(f->R.rdi);
 			break;
 		case SYS_OPEN:
-			// if (!is_user_vaddr((rsptr+8))) exit(-1);
-			f->R.rax = open((const char *)*(uintptr_t *)(rsptr+8));
+			f->R.rax = open(f->R.rdi);
 			break;
 		case SYS_FILESIZE:
-			// if (!is_user_vaddr((rsptr+8))) exit(-1);
-			f->R.rax = filesize((int)*(uintptr_t *)(rsptr+8));
+			f->R.rax = filesize(f->R.rdi);
 			break;
 		case SYS_READ:
-			// if (!is_user_vaddr((rsptr+40))) exit(-1);
-			f->R.rax = read((int)*(uintptr_t *)(rsptr+40), (void *)*(uintptr_t *)(rsptr+48), (unsigned *)*(uintptr_t *)(rsptr+56));
+			f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_WRITE:
-			// if (!is_user_vaddr((rsptr+40))) exit(-1);
-			// if (!is_user_vaddr((rsptr+48))) exit(-1);
-			// if (!is_user_vaddr((rsptr+56))) exit(-1);
-			// PANIC("fuck! %d %d %d\n", f->R.rdi, f->R.rsi, f->R.rdx);
 			f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_SEEK:
-			// if (!is_user_vaddr((rsptr+32))) exit(-1);
-			// if (!is_user_vaddr((rsptr+40))) exit(-1);
-			seek((int)*(uintptr_t *)(rsptr+32), (unsigned)*(uintptr_t *)(rsptr+40));
+			seek(f->R.rdi, f->R.rsi);
 			break;
 		case SYS_TELL:
-			// if (!is_user_vaddr((rsptr+8))) exit(-1);
-			f->R.rax = tell((int)*(uintptr_t *)(rsptr+8));
+			f->R.rax = tell(f->R.rdi);
 			break;
 		case SYS_CLOSE:
-			// if (!is_user_vaddr((rsptr+8))) exit(-1);
-			// PANIC("%d\n", f->R.rax);
-			close((int)*(uintptr_t *)(rsptr+8));
+			close(f->R.rdi);
 			break;
 		default:
 			thread_exit ();
