@@ -91,7 +91,7 @@ get_child_process(int pid){
 		if(child_thread->tid == pid) return child_thread;
 		elem_needle = list_next(elem_needle);
 	}
-	PANIC("fuck!");
+	// PANIC("fuck!");
     return NULL;
 }
 
@@ -179,7 +179,7 @@ __do_fork (void *aux) {
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 	int i;
-	for(i=3; i<128; i++){
+	for(i=2; i<128; i++){
 		if(parent->fl_descr[i] == NULL) break;
 		current->fl_descr[i] = file_duplicate(parent->fl_descr[i]);
 	}
@@ -188,8 +188,10 @@ __do_fork (void *aux) {
 	process_init ();
 
 	/* Finally, switch to the newly created process. */
-	if (succ)
+	if (succ){
+		if_.R.rax = 0;
 		do_iret (&if_);
+	}
 error:
 	sema_up(&current->sema_load);
 	thread_exit ();
