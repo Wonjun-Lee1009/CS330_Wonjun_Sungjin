@@ -58,7 +58,7 @@ process_create_initd (const char *file_name) {
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 
-	sema_down(&get_child_process(tid)->sema_load);
+	// sema_down(&get_child_process(tid)->sema_load);
 
     if (tid == TID_ERROR)
         palloc_free_page (fn_copy);
@@ -101,8 +101,10 @@ tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
     memcpy(&thread_current()->f_tf, if_, sizeof(struct intr_frame));
-	return thread_create (name,
+	tid_t tid =  thread_create (name,
 			PRI_DEFAULT, __do_fork, thread_current ());
+	sema_down(&thread_current()->sema_load);
+	return tid;
 }
 
 #ifndef VM
@@ -190,17 +192,18 @@ __do_fork (void *aux) {
 		// }
 		current->fl_descr[i] = file_duplicate(parent->fl_descr[i]);
 	}
-	sema_up(&current->sema_load);
 
 	process_init ();
+	// sema_up(&current->parent->sema_load);
 	/* Finally, switch to the newly created process. */
 	if (succ){
 		if_.R.rax = 0;
+		sema_up(&current->parent->sema_load);
 		// PANIC("I'm here!!!! %d\n", if_.rsp);
 		do_iret (&if_);
 	}
 error:
-	sema_up(&current->sema_load);
+	sema_up(&current->parent->sema_load);
 	thread_exit ();
 }
 
@@ -225,7 +228,7 @@ process_exec (void *f_name) {
 	/* And then load the binary */
 	success = load (file_name, &_if);
 
-	sema_up(&thread_current()->sema_load);
+	// sema_up(&thread_current()->sema_load);
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success)

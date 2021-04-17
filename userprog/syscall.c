@@ -150,8 +150,8 @@ fork (const char *thread_name, struct intr_frame *f){
 	// user_tf = &(curr->tf);
 	// PANIC("current f_tf, tf: %d %d\n", curr->f_tf.rsp, curr->tf.rsp);
 	child_pid = process_fork(thread_name, f);
-	child_th = get_child_process(child_pid);
-	sema_down(&child_th->sema_load);
+	// child_th = get_child_process(child_pid);
+	// sema_down(&child_th->sema_load);
 	return child_pid;
 }
 
@@ -287,6 +287,6 @@ close (int fd){
 
 	// if(pml4_get_page(thread_current()->pml4, curr_file) == NULL) exit(-1);
 	if(curr_file == NULL) exit(-1);
-	curr_file = NULL;
+	curr->fl_descr[fd] = NULL;
 	file_close(curr_file);
 }
