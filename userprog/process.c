@@ -180,8 +180,14 @@ __do_fork (void *aux) {
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 	int i;
-	for(i=2; i<128; i++){
-		if(parent->fl_descr[i] == NULL) break;
+	for(i=3; i<128; i++){
+		if(parent->fl_descr[i] == NULL){
+			// PANIC("file descriptor : %d\n", i);
+			break;
+		}
+		// if(i==127){
+		// 	PANIC("i=127\n");
+		// }
 		current->fl_descr[i] = file_duplicate(parent->fl_descr[i]);
 	}
 	sema_up(&current->sema_load);

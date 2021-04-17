@@ -199,7 +199,7 @@ open (const char *file){
 	else{
 		ret = 3;
 		while(curr->fl_descr[ret] != NULL) ret++;
-		if (strcmp(curr->name, file) == 0) file_deny_write(opened_file);
+		if (strcmp(thread_name(), file) == 0) file_deny_write(opened_file);
 		curr->fl_descr[ret] = opened_file;
 	}
 	lock_release(&file_sys_lock);
@@ -228,9 +228,10 @@ read (int fd, void *buffer, unsigned size){
 	else if(fd>2){
 		struct thread *curr = thread_current();
 		if(curr->fl_descr[fd] == NULL){
-			exit(-1);
+			// PANIC("fd : %d\n", fd);
+			ret = -1;
 		}
-		ret = file_read(curr->fl_descr[fd], buffer, size);
+		else ret = file_read(curr->fl_descr[fd], buffer, size);
 	}
 	lock_release(&file_sys_lock);
 	return ret;
@@ -254,7 +255,7 @@ write (int fd, const void *buffer, unsigned size){
 			lock_release(&file_sys_lock);
 			exit(-1);
 		}
-		//file_deny_write(curr_file);
+		// file_deny_write(curr_file);
 		ret = file_write(curr_file, buffer, size);
 	}
 	lock_release(&file_sys_lock);

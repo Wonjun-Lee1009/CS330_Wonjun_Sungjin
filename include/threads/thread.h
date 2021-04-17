@@ -119,7 +119,7 @@ struct thread {
 	struct intr_frame f_tf;
 	struct semaphore sema_load;
 	struct semaphore sema_child;
-	struct semaphore sema_child_lock;
+	struct semaphore sema_zombie;
 	struct list child_process;
 	struct list_elem child_process_elem;
 	struct thread *parent;
