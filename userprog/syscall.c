@@ -19,7 +19,7 @@ void syscall_handler (struct intr_frame *);
 
 void halt (void);
 void exit (int status);
-tid_t fork (const char *thread_name);
+tid_t fork (const char *thread_name, struct intr_frame *f);
 int exec (const char *cmd_line);
 int wait (tid_t pid);
 bool create (const char *file, unsigned initial_size);
@@ -81,7 +81,8 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			exit(f->R.rdi);
 			break;
 		case SYS_FORK:
-			f->R.rax = fork(f->R.rdi);
+			// PANIC("fork checking!!: %d\n", f->rsp);
+			f->R.rax = fork(f->R.rdi, f);
 			break;
 		case SYS_EXEC:
 			if (!is_user_vaddr(f->R.rdi)) thread_exit();
@@ -139,15 +140,16 @@ exit(int status){
 }
 
 tid_t
-fork (const char *thread_name){
+fork (const char *thread_name, struct intr_frame *f){
 	tid_t child_pid;
 	struct thread *curr;
 	struct thread *child_th;
-	struct intr_frame *user_tf;
+	// struct intr_frame *user_tf;
 	
-	curr = thread_current();
-	user_tf = &(curr->f_tf);
-	child_pid = process_fork(thread_name, user_tf);
+	// curr = thread_current();
+	// user_tf = &(curr->tf);
+	// PANIC("current f_tf, tf: %d %d\n", curr->f_tf.rsp, curr->tf.rsp);
+	child_pid = process_fork(thread_name, f);
 	child_th = get_child_process(child_pid);
 	sema_down(&child_th->sema_load);
 	return child_pid;

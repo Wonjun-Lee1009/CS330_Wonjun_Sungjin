@@ -157,6 +157,7 @@ __do_fork (void *aux) {
 	parent_if = &parent->f_tf;
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	// PANIC("checking duplicated if_: %d, %d\n", &parent->f_tf.rsp, if_.rsp);
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
@@ -186,10 +187,10 @@ __do_fork (void *aux) {
 	sema_up(&current->sema_load);
 
 	process_init ();
-
 	/* Finally, switch to the newly created process. */
 	if (succ){
 		if_.R.rax = 0;
+		// PANIC("I'm here!!!! %d\n", if_.rsp);
 		do_iret (&if_);
 	}
 error:
@@ -249,7 +250,7 @@ process_wait (tid_t child_tid UNUSED) {
 
 	child_process = get_child_process(child_tid);
 	if(child_process == NULL) return -1;
-	sema_down(&child_process->sema_child_lock);
+	sema_down(&child_process->sema_child);
 	status = child_process->exit_status;
 
 	list_remove(&child_process->child_process_elem);

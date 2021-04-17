@@ -353,16 +353,16 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
-	t->parent = thread_current();
-	t->exit_status = -1;
-	sema_init(&t->sema_load, 0);
-	sema_init(&t->sema_child_lock, 0);
-	sema_init(&t->sema_child, 0);
-	t->parent = running_thread();
-	list_push_back(&running_thread()->child_process, &t->child_process_elem);
-	for(int i=0; i<128; i++){
-		t->fl_descr[i]=NULL;
-	}	
+	// t->parent = thread_current();
+	// t->exit_status = -1;
+	// sema_init(&t->sema_load, 0);
+	// // sema_init(&t->sema_child_lock, 0);
+	// sema_init(&t->sema_child, 0);
+	// t->parent = running_thread();
+	// list_push_back(&running_thread()->child_process, &t->child_process_elem);
+	// for(int i=0; i<128; i++){
+	// 	t->fl_descr[i]=NULL;
+	// }	
 
 	/* Add to run queue. */
 	thread_unblock (t);
@@ -452,7 +452,7 @@ thread_exit (void) {
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
 	intr_disable ();
-    sema_up(&thread_current()->sema_child_lock);
+    sema_up(&thread_current()->sema_child);
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();
 }
@@ -716,6 +716,17 @@ init_thread (struct thread *t, const char *name, int priority) {
 	/* Advanced scheduler */
 	t->nice = 0;
 	t->recent_cpu = 0;
+
+	// t->parent = thread_current();
+	t->exit_status = -1;
+	sema_init(&t->sema_load, 0);
+	// sema_init(&t->sema_child_lock, 0);
+	sema_init(&t->sema_child, 0);
+	t->parent = running_thread();
+	list_push_back(&running_thread()->child_process, &t->child_process_elem);
+	for(int i=0; i<128; i++){
+		t->fl_descr[i]=NULL;
+	}	
 
 	list_push_back(&all_threads, &t->all_elem);
 }
