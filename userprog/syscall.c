@@ -46,7 +46,7 @@ void close (int fd);
 #define MSR_LSTAR 0xc0000082        /* Long mode SYSCALL target */
 #define MSR_SYSCALL_MASK 0xc0000084 /* Mask for the eflags */
 
-struct lock file_sys_lock;
+// struct lock file_sys_lock;
 
 void
 syscall_init (void) {

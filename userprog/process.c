@@ -7,6 +7,7 @@
 #include <string.h>
 #include "userprog/gdt.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -226,7 +227,9 @@ process_exec (void *f_name) {
 	process_cleanup ();
 
 	/* And then load the binary */
+	lock_acquire(&file_sys_lock);
 	success = load (file_name, &_if);
+	lock_release(&file_sys_lock);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
