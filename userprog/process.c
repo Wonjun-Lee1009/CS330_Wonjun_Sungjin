@@ -58,7 +58,7 @@ process_create_initd (const char *file_name) {
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 
-	// sema_down(&get_child_process(tid)->sema_load);
+	// sema_down(&thread_current()->sema_load);
 
     if (tid == TID_ERROR)
         palloc_free_page (fn_copy);
@@ -228,9 +228,9 @@ process_exec (void *f_name) {
 	/* And then load the binary */
 	success = load (file_name, &_if);
 
-	// sema_up(&thread_current()->sema_load);
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
+	// sema_up(&thread_current()->parent->sema_load);
 	if (!success)
 		return -1;
 
@@ -263,6 +263,7 @@ process_wait (tid_t child_tid UNUSED) {
 	status = child_process->exit_status;
 
 	list_remove(&child_process->child_process_elem);
+	sema_up(&child_process->sema_zombie);
 	list_remove(&child_process->elem);
 	palloc_free_page(child_process);
 	
@@ -279,7 +280,7 @@ process_exit (void) {
 	 * TODO: We recommend you to implement process resource cleanup here. */
 	process_cleanup ();
 	sema_up(&curr->sema_child);
-	// sema_down(&curr->sema_child_lock);
+	sema_down(&curr->sema_zombie);
 }
 
 /* Free the current process's resources. */
