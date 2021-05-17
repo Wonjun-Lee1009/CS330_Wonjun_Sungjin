@@ -46,7 +46,7 @@ void close (int fd);
 #define MSR_LSTAR 0xc0000082        /* Long mode SYSCALL target */
 #define MSR_SYSCALL_MASK 0xc0000084 /* Mask for the eflags */
 
-struct lock file_sys_lock;
+// struct lock file_sys_lock;
 
 void
 syscall_init (void) {
@@ -287,6 +287,7 @@ close (int fd){
 
 	// if(pml4_get_page(thread_current()->pml4, curr_file) == NULL) exit(-1);
 	if(curr_file == NULL) exit(-1);
-	curr->fl_descr[fd] = NULL;
+	
 	file_close(curr_file);
+	curr->fl_descr[fd] = NULL;
 }

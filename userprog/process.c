@@ -7,6 +7,7 @@
 #include <string.h>
 #include "userprog/gdt.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -53,7 +54,7 @@ process_create_initd (const char *file_name) {
     strlcpy (fn_copy, file_name, PGSIZE);
 
 
-    strtok_r(file_name, " ", file_name_save);
+    file_name = strtok_r(file_name, " ", file_name_save);
 
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
@@ -226,7 +227,9 @@ process_exec (void *f_name) {
 	process_cleanup ();
 
 	/* And then load the binary */
+	lock_acquire(&file_sys_lock);
 	success = load (file_name, &_if);
+	lock_release(&file_sys_lock);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -374,7 +377,7 @@ struct ELF64_PHDR {
 #define ELF ELF64_hdr
 #define Phdr ELF64_PHDR
 
-static bool setup_stack (struct intr_frame *if_);
+bool setup_stack (struct intr_frame *if_);
 static bool validate_segment (const struct Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes,
@@ -724,6 +727,22 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+
+	struct carrier *rec = (struct carrier*)aux;
+	struct file *file = rec->file;
+	off_t pos = rec->pos;
+	size_t page_read_bytes = rec->prd;
+	size_t page_zero_bytes = rec->pzd;
+
+	file_seek(file, pos);
+	/* Load this page. */
+	if (file_read (file, page->frame->kva, page_read_bytes) != (int) page_read_bytes) {
+		palloc_free_page(page->frame->kva);
+		return false;
+	}
+	memset (page->frame->kva + page_read_bytes, 0, page_zero_bytes);
+	// free(rec);
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -755,7 +774,13 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
+		struct carrier *aux = (struct carrier *) malloc(sizeof(struct carrier));
+		aux->file = file;
+		aux->pos = ofs;
+		aux->prd = page_read_bytes;
+		aux->pzd = page_zero_bytes;
+		ofs += page_read_bytes;
+
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux))
 			return false;
@@ -769,7 +794,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
-static bool
+bool
 setup_stack (struct intr_frame *if_) {
 	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
@@ -778,6 +803,14 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
+	bool writable = true;
+	if(success = vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, writable)){
+		success = vm_claim_page(stack_bottom);
+		if(success){
+			// PANIC("HERERERERE");
+			if_->rsp = USER_STACK;
+		}
+	}
 
 	return success;
 }
