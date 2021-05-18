@@ -178,9 +178,27 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	/* TODO: Your code goes here */
 	if(is_kernel_vaddr(addr)) return false;
 
-	page = spt_find_page(spt, addr);
-	if (page == NULL) return false;
-	return vm_do_claim_page(page);
+	void *rsp_stack = is_kernel_vaddr(f->rsp) ? thread_current()->stptr : f->rsp;
+    if (not_present){
+
+        // printf("ee\n");
+        // printf("here?? 22\n");
+        if(!vm_claim_page(addr))
+        {
+            // printf("rsp addr :: %p\n", rsp_stack);
+            if(rsp_stack - 8 <= addr && USER_STACK - 0x100000 <= addr && addr <= USER_STACK)
+            {
+                vm_stack_growth(thread_current()->stbottom - PGSIZE);
+                return true;
+            }
+            return false;
+
+        }
+        else
+            return true;
+    }
+    
+    return false;
 }
 
 /* Free the page.

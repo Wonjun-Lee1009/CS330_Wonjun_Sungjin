@@ -61,7 +61,7 @@ syscall_init (void) {
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 	lock_init(&file_sys_lock);
 	// PANIC("fuck");
-	intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+	// intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 	// PANIC("fuck");
 }
 
@@ -71,6 +71,9 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 
 	char *rsptr = f->rsp;
+#ifdef VM
+	thread_current()->stptr = f->rsp;
+#endif
 	if(!is_user_vaddr(rsptr)) exit(-1);
 	// PANIC("%d %d %d %d\n\n", f->rsp, f->R.rax, f->R.rsi, f->R.rdx);
 	switch(f->R.rax){
