@@ -89,7 +89,7 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *p = (struct page*)malloc(sizeof(struct page));
  	struct hash_elem *e;
 	
-	p->va = va;
+	p->va = pg_round_down(va);
  	e = hash_find(&spt->hash_table, &p->spt_elem);
 	free(p);
  	if(e != NULL) page = hash_entry(e, struct page, spt_elem);
@@ -103,7 +103,7 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
-	if(hash_insert(&spt->hash_table, &page->spt_elem) != NULL) succ = true;
+	if(hash_insert(&spt->hash_table, &page->spt_elem) == NULL) succ = true;
 
 	return succ;
 }
@@ -142,7 +142,7 @@ static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
-	frame = (struct frame *)malloc(sizeof(struct frame));
+	frame = malloc(sizeof(struct frame));
 	void *p = palloc_get_page(PAL_USER);
  	if(p == NULL) PANIC("todo");
 
@@ -177,18 +177,10 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
 	if(is_kernel_vaddr(addr)) return false;
-	void *stptr;
-	if(is_kernel_vaddr(f->rsp)) stptr = thread_current()->stptr;
-	else stptr = f->rsp;
-	if(not_present)
-		if(!vm_claim_page(addr))
-			if(stptr <= addr + 8 && 
-				USER_STACK <= addr + 0x100000 && 
-				USER_STACK >= addr){
-				vm_stack_growth((thread_current()->stbottom) - PGSIZE);
-				return true;
-			}
-	return false;
+
+	page = spt_find_page(spt, addr);
+	if (page == NULL) return false;
+	return vm_do_claim_page(page);
 }
 
 /* Free the page.
