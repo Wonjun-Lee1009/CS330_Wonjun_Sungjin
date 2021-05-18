@@ -50,6 +50,9 @@ typedef bool hash_less_func (const struct hash_elem *a,
 		const struct hash_elem *b,
 		void *aux);
 
+unsigned page_hash(const struct hash_elem *p_, void *aux);
+bool page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux);
+
 /* Performs some operation on hash element E, given auxiliary
  * data AUX. */
 typedef void hash_action_func (struct hash_elem *e, void *aux);
