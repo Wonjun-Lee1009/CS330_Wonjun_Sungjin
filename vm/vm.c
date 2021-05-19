@@ -179,26 +179,31 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	if(is_kernel_vaddr(addr)) return false;
 
 	void *rsp_stack = is_kernel_vaddr(f->rsp) ? thread_current()->stptr : f->rsp;
-    if (not_present){
 
-        // printf("ee\n");
-        // printf("here?? 22\n");
-        if(!vm_claim_page(addr))
-        {
-            // printf("rsp addr :: %p\n", rsp_stack);
-            if(rsp_stack - 8 <= addr && USER_STACK - 0x100000 <= addr && addr <= USER_STACK)
+	page = spt_find_page(spt, addr);
+
+	if(not_present){
+		if(page == NULL){
+			if(rsp_stack - 8 <= addr && USER_STACK - (1<<20) <= addr && addr <= USER_STACK)
             {
                 vm_stack_growth(thread_current()->stbottom - PGSIZE);
                 return true;
             }
             return false;
-
-        }
-        else
-            return true;
-    }
-    
-    return false;
+		}
+		else{
+			if((!(page->writable)) && write){
+				return false;
+			}
+			if(VM_TYPE(page->operations->type) == VM_ANON || VM_TYPE(page->operations->type) == VM_FILE) {
+				struct frame *frame = vm_evict_frame();
+				page->frame = frame;
+				return swap_in(page, frame->kva);
+			}
+			return vm_do_claim_page(page);
+		}
+	}
+    else return false;
 }
 
 /* Free the page.
