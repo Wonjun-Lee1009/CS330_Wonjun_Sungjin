@@ -16,6 +16,8 @@
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
+void check_RW_address(struct intr_frame *f, int type);
+bool check_MMAP_address(struct intr_frame *);
 
 void halt (void);
 void exit (int status);
@@ -31,6 +33,8 @@ int write (int fd, const void *buffer, unsigned size);
 void seek (int fd, unsigned position);
 unsigned tell (int fd);
 void close (int fd);
+void *mmap(struct intr_frame *f);
+void munmap(void *addr);
 
 
 /* System call.
@@ -64,6 +68,10 @@ syscall_init (void) {
 	// intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 	// PANIC("fuck");
 }
+
+enum read_or_write{
+	READ, WRITE
+};
 
 /* The main system call interface */
 void
@@ -107,9 +115,11 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			f->R.rax = filesize(f->R.rdi);
 			break;
 		case SYS_READ:
+			check_RW_address(f, READ);
 			f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_WRITE:
+			check_RW_address(f, WRITE);
 			f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_SEEK:
@@ -121,10 +131,42 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_CLOSE:
 			close(f->R.rdi);
 			break;
+		case SYS_MMAP:
+			if(check_MMAP_address(f)) f->R.rax = mmap(f);
+			else f->R.rax = NULL;
+			break;
+		case SYS_MUNMAP:
+			munmap(f->R.rdi);
+			break;
 		default:
 			thread_exit ();
 	}
 	// printf ("system call!\n");
+}
+
+void
+check_RW_address(struct intr_frame *f, int type){
+	void *buf = f->R.rsi;
+	unsigned size = f->R.rdx;
+	int i;
+
+	for(i = 0; i<size; i++){
+		if(is_kernel_vaddr(buf + i)) exit(-1);
+		struct page *page = spt_find_page(&thread_current()->spt, buf + i);
+		if(!page) exit(-1);
+		if(type == WRITE) return;
+		else if(page->writable == READ) exit(-1);
+	}
+}
+
+bool
+check_MMAP_address(struct intr_frame *f){
+	if(is_kernel_vaddr(f->R.rdi) || f->R.rdi == NULL) return false;
+	if(spt_find_page(&thread_current()->spt, f->R.rdi)) return false;
+	if(f->R.rsi <= 0) return false;
+	if(pg_ofs(f->R.r8)!=0) return false;
+	if(f->R.rdi +f->R.rsi ==0) return false;
+	if(f->R.r10 == 0 || f->R.r10 == 1) exit(-1);
 }
 
 void
@@ -292,4 +334,16 @@ close (int fd){
 	if(curr_file == NULL) exit(-1);
 	curr->fl_descr[fd] = NULL;
 	file_close(curr_file);
+}
+
+void *mmap(struct intr_frame *f){
+	struct file *file;
+
+	if((file = thread_current()->fl_descr[f->R.r10]) == NULL) return NULL;
+
+	return do_mmap(f->R.rdi, f->R.rsi, f->R.rdx, file, f->R.r8);
+}
+
+void munmap(void *addr){
+	do_munmap(addr);
 }

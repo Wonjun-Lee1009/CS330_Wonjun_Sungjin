@@ -1,10 +1,14 @@
 /* file.c: Implementation of memory backed file object (mmaped object). */
 
 #include "vm/vm.h"
+#include "threads/vaddr.h"
+#include "userprog/process.h"
+#include "threads/mmu.h"
 
 static bool file_backed_swap_in (struct page *page, void *kva);
 static bool file_backed_swap_out (struct page *page);
 static void file_backed_destroy (struct page *page);
+bool lazy_mmap(struct page *page, void *aux);
 
 /* DO NOT MODIFY this struct */
 static const struct page_operations file_ops = {
@@ -50,9 +54,63 @@ file_backed_destroy (struct page *page) {
 void *
 do_mmap (void *addr, size_t length, int writable,
 		struct file *file, off_t offset) {
+
+	void *addr_original = addr;
+	size_t read_bytes = length;
+	size_t zero_bytes = (PGSIZE - read_bytes) % PGSIZE;
+	struct file *refile = file_reopen(file);
+
+	while(read_bytes > 0 || zero_bytes > 0){
+		size_t page_read_bytes;
+		if(read_bytes < PGSIZE) page_read_bytes = read_bytes;
+		else page_read_bytes = PGSIZE;
+        size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+		struct carrier *aux = (struct carrier *)malloc(sizeof(struct carrier));
+		aux->file = file;
+ 		aux->pos = offset;
+ 		aux->prd = page_read_bytes;
+ 		aux->pzd = page_zero_bytes;
+		if(!vm_alloc_page_with_initializer(VM_FILE, addr,
+			 writable, lazy_mmap, aux)) return NULL;
+		read_bytes -= page_read_bytes;
+		zero_bytes -= page_zero_bytes;
+		addr += PGSIZE;
+		offset += page_read_bytes;
+	}
+
+}
+
+bool
+lazy_mmap (struct page *page, void *aux) {
+	struct carrier *rec = (struct carrier*)aux;
+ 	struct file *file = rec->file;
+	off_t pos = rec->pos;
+ 	size_t page_read_bytes = rec->prd;
+ 	size_t page_zero_bytes = rec->pzd;
+	
+	if (file_read_at (file, page->frame->kva, page_read_bytes, pos) != (int) page_read_bytes) {
+ 		palloc_free_page(page->frame->kva);
+ 		return false;
+ 	}
+ 	memset (page->frame->kva + page_read_bytes, 0, page_zero_bytes);
+ 	return true;
 }
 
 /* Do the munmap */
 void
 do_munmap (void *addr) {
+	struct page *page;
+	struct carrier * aux;
+
+	for(page = spt_find_page(&thread_current()->spt, addr);
+		 page!=NULL;
+		 addr+=PGSIZE){
+		aux = (struct carrier *)page->uninit.aux;
+		if(pml4_is_dirty(thread_current()->pml4, page->va)){
+			file_write_at(aux->file, addr, aux->prd, aux->pos);
+			pml4_set_dirty(thread_current()->pml4, page->va, false);
+		}
+		pml4_clear_page(thread_current()->pml4, page->va);
+	}
 }
