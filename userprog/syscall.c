@@ -115,11 +115,15 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			f->R.rax = filesize(f->R.rdi);
 			break;
 		case SYS_READ:
+			#ifdef VM
 			check_RW_address(f, READ);
+			#endif
 			f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_WRITE:
+			#ifdef VM
 			check_RW_address(f, WRITE);
+			#endif
 			f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_SEEK:
@@ -131,6 +135,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_CLOSE:
 			close(f->R.rdi);
 			break;
+		#ifdef VM
 		case SYS_MMAP:
 			if(check_MMAP_address(f)) f->R.rax = mmap(f);
 			else f->R.rax = NULL;
@@ -138,12 +143,14 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_MUNMAP:
 			munmap(f->R.rdi);
 			break;
+		#endif
 		default:
 			thread_exit ();
 	}
 	// printf ("system call!\n");
 }
 
+#ifdef VM
 void
 check_RW_address(struct intr_frame *f, int type){
 	void *buf = f->R.rsi;
@@ -164,11 +171,13 @@ check_MMAP_address(struct intr_frame *f){
 	if(is_kernel_vaddr(f->R.rdi) || f->R.rdi == NULL) return false;
 	if(spt_find_page(&thread_current()->spt, f->R.rdi)) return false;
 	if(f->R.rsi <= 0) return false;
+	if(pg_ofs(f->R.rdi)!=0) return false;
 	if(pg_ofs(f->R.r8)!=0) return false;
 	if(f->R.rdi +f->R.rsi ==0) return false;
 	if(f->R.r10 == 0 || f->R.r10 == 1) exit(-1);
+	return true;
 }
-
+#endif
 void
 halt(void){
 	power_off();
@@ -335,15 +344,16 @@ close (int fd){
 	curr->fl_descr[fd] = NULL;
 	file_close(curr_file);
 }
-
+#ifdef VM
 void *mmap(struct intr_frame *f){
 	struct file *file;
 
 	if((file = thread_current()->fl_descr[f->R.r10]) == NULL) return NULL;
-
+	// PANIC("shit3\n");
 	return do_mmap(f->R.rdi, f->R.rsi, f->R.rdx, file, f->R.r8);
 }
 
 void munmap(void *addr){
 	do_munmap(addr);
 }
+#endif
