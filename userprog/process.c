@@ -537,13 +537,15 @@ load (const char *file_name, struct intr_frame *if_) {
     if((uint64_t)rsptr%8 != 0){
         while((uint64_t)rsptr%8 != 0){
             rsptr--;
+        	*rsptr = 0;
         }
-        *rsptr = 0;
+		// *rsptr = 0;
     }
 
     /*ready for putting address*/
     rsptr -= 8;
-    *rsptr = 0;
+	memset(rsptr, 0, sizeof(char **));
+    // *rsptr = 0;
 	
     /*put address - should use ((char **)rsptr)[i] = address[i] */
     for(i=argc-1; i>=0; i--){
@@ -561,7 +563,8 @@ load (const char *file_name, struct intr_frame *if_) {
 
     /*stacking finished*/
     rsptr -= 8;
-    *rsptr = 0;
+	memset(rsptr, 0, sizeof(char **));
+    // *rsptr = 0;
 
 	if_->rsp = (uintptr_t)rsptr;
 	free(argv);

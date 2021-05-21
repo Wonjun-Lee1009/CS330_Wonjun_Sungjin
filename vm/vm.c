@@ -119,7 +119,16 @@ static struct frame *
 vm_get_victim (void) {
 	struct frame *victim = NULL;
 	/* TODO: The policy for eviction is up to you. */
-	
+	struct list_elem *elem_needle, *temp_elem;
+	for(elem_needle = list_begin(&frame_table);
+		elem_needle != list_end(&frame_table); ){
+			victim = list_entry(elem_needle, struct frame, ft_elem);
+			if(pml4_is_accessed(&thread_current()->pml4, victim->page->va)){
+				elem_needle = list_next(elem_needle);
+				pml4_set_accessed(&thread_current()->pml4, victim->page->va, 0);
+			}
+			else return victim;
+	}
 
 	return victim;
 }
@@ -145,10 +154,10 @@ vm_get_frame (void) {
 	frame = (struct frame *)malloc(sizeof(struct frame));
 	void *p = palloc_get_page(PAL_USER);
 	frame->kva = p;
- 	if(p == NULL) PANIC("todo");
+ 	if(p == NULL) return vm_evict_frame();
 
  	frame->page = NULL;
-
+	 list_push_back(&frame_table, &frame->ft_elem);
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
 	return frame;
@@ -195,11 +204,11 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 			if((!(page->writable)) && write){
 				return false;
 			}
-			if(VM_TYPE(page->operations->type) == VM_ANON || VM_TYPE(page->operations->type) == VM_FILE) {
-				struct frame *frame = vm_evict_frame();
-				page->frame = frame;
-				return swap_in(page, frame->kva);
-			}
+			// if(VM_TYPE(page->operations->type) == VM_ANON || VM_TYPE(page->operations->type) == VM_FILE) {
+			// 	struct frame *frame = vm_evict_frame();
+			// 	page->frame = frame;
+			// 	return swap_in(page, frame->kva);
+			// }
 			return vm_do_claim_page(page);
 		}
 	}
