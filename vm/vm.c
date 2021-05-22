@@ -123,9 +123,9 @@ vm_get_victim (void) {
 	for(elem_needle = list_begin(&frame_table);
 		elem_needle != list_end(&frame_table); ){
 			victim = list_entry(elem_needle, struct frame, ft_elem);
-			if(pml4_is_accessed(&thread_current()->pml4, victim->page->va)){
+			if(pml4_is_accessed(thread_current()->pml4, victim->page->va)){
 				elem_needle = list_next(elem_needle);
-				pml4_set_accessed(&thread_current()->pml4, victim->page->va, 0);
+				pml4_set_accessed(thread_current()->pml4, victim->page->va, 0);
 			}
 			else return victim;
 	}
