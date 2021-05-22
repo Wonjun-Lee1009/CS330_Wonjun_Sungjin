@@ -343,6 +343,7 @@ close (int fd){
 	struct thread *curr = thread_current();
 	struct file *curr_file = curr->fl_descr[fd];
 
+#ifdef VM
 	struct supplemental_page_table *spt;
 	spt = &curr->spt;
 	struct hash_iterator i;
@@ -351,14 +352,23 @@ close (int fd){
 	{
 		struct page *page = hash_entry (hash_cur (&i), struct page, spt_elem);
 		if(page->operations->type == VM_UNINIT && page->uninit.type == VM_FILE && ((struct carrier *)page->uninit.aux)->file == curr_file){
-			//printf("%x\n", page->va);
-			//vm_claim_page(page);
-			//printf("HERE~~~~~~\n");
+			// printf("%x\n", page->va);
+			vm_claim_page(page->va);
+			// printf("HERE~~~~~~\n");
+		}
+		if(page->operations->type == VM_FILE){
+			struct carrier *aux = (struct carrier *)page->uninit.aux;
+			if(pml4_is_dirty(thread_current()->pml4, page->va)){
+				// printf("%x\n", page->va);
+				file_write_at(aux->file, page->va, aux->prd, aux->pos);
+				pml4_set_dirty(thread_current()->pml4, page->va, false);
+			}
 		}
 	}
+#endif
 	// if(pml4_get_page(thread_current()->pml4, curr_file) == NULL) exit(-1);
 	// if(curr_file == NULL) exit(-1);
-	//file_close(curr_file);
+	file_close(curr_file);
 	curr->fl_descr[fd] = NULL;
 }
 #ifdef VM

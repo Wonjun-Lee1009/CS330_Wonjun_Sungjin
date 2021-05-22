@@ -106,6 +106,7 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 			PRI_DEFAULT, __do_fork, thread_current ());
 	if(tid > 0){
 		sema_down(&thread_current()->sema_load);
+		sema_down(&thread_current()->sema_load);
 		if (thread_current()->is_loaded)
             return tid;
         else
@@ -297,6 +298,7 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+	sema_up(&thread_current()->parent->sema_load);
 	for (int i = 2; i <= curr->num_fd; i++){
 		if (curr->fl_descr[i] != NULL) close(i);
 	}

@@ -83,15 +83,16 @@ do_mmap (void *addr, size_t length, int writable,
 	struct file *refile = file_reopen(file);
     size_t read_bytes = length > file_length(file) ? file_length(file) : length;
     size_t zero_bytes = PGSIZE - read_bytes % PGSIZE;
-
+	// printf("len : %x\n", read_bytes);
 	while(read_bytes > 0 || zero_bytes > 0){
 		size_t page_read_bytes;
 		if(read_bytes < PGSIZE) page_read_bytes = read_bytes;
 		else page_read_bytes = PGSIZE;
         size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+		// printf("%x\n", addr);
 		struct carrier *aux = (struct carrier *)malloc(sizeof(struct carrier));
-		aux->file = file;
+		aux->file = refile;
  		aux->pos = offset;
  		aux->prd = page_read_bytes;
  		aux->pzd = page_zero_bytes;
@@ -109,6 +110,7 @@ bool
 lazy_mmap (struct page *page, void *aux) {
 	struct carrier *rec = (struct carrier*)aux;
  	struct file *file = rec->file;
+	 off_t ori_pos = file_tell(file);
 	off_t pos = rec->pos;
  	size_t page_read_bytes = rec->prd;
  	size_t page_zero_bytes = rec->pzd;
@@ -117,6 +119,7 @@ lazy_mmap (struct page *page, void *aux) {
  		return false;
  	}
  	memset (page->frame->kva + page_read_bytes, 0, page_zero_bytes);
+	 file_seek(file, ori_pos);
  	return true;
 }
 
@@ -132,6 +135,7 @@ do_munmap (void *addr) {
 		//  printf("%x\n", addr);
 		aux = (struct carrier *)page->uninit.aux;
 		if(pml4_is_dirty(thread_current()->pml4, page->va)){
+			//printf("%x\n", page->va);
 			file_write_at(aux->file, addr, aux->prd, aux->pos);
 			pml4_set_dirty(thread_current()->pml4, page->va, false);
 		}
