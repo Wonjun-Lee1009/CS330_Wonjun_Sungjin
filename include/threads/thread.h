@@ -116,6 +116,7 @@ struct thread {
 	uint64_t *pml4;                     /* Page map level 4 */
 	int exit_status;
 	struct file *fl_descr[128];
+	int num_fd;
 	struct intr_frame f_tf;
 	struct semaphore sema_load;
 	struct semaphore sema_child;
@@ -123,6 +124,8 @@ struct thread {
 	struct list child_process;
 	struct list_elem child_process_elem;
 	struct thread *parent;
+	int is_loaded;
+	struct file *running_file;
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */

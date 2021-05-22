@@ -247,7 +247,6 @@ vm_do_claim_page (struct page *page) {
 	bool wr = page->writable;
  	void* succ1 = pml4_get_page(thread_current()->pml4, page->va);
  	bool succ2 = pml4_set_page(thread_current()->pml4, page->va, frame->kva, wr);
-
 	if((succ1 == NULL) && succ2) return swap_in (page, frame->kva);
  	else return false;
 }

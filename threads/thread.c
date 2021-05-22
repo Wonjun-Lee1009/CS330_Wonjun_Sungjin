@@ -727,7 +727,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 	list_push_back(&running_thread()->child_process, &t->child_process_elem);
 	for(int i=0; i<128; i++){
 		t->fl_descr[i]=NULL;
-	}	
+	}
+	t->is_loaded = 0;
+	t->num_fd = 1;
 
 	list_push_back(&all_threads, &t->all_elem);
 }

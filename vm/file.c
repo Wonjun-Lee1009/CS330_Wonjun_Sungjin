@@ -125,17 +125,18 @@ void
 do_munmap (void *addr) {
 	struct page *page;
 	struct carrier * aux;
-	PANIC("shitt\n");
+	//PANIC("shitt\n");
 	for(page = spt_find_page(&thread_current()->spt, addr);
 		 page!=NULL;
-		 addr+=PGSIZE){
-		// printf("%lld\n", addr);
+		 page = spt_find_page(&thread_current()->spt, addr)){
+		//  printf("%x\n", addr);
 		aux = (struct carrier *)page->uninit.aux;
 		if(pml4_is_dirty(thread_current()->pml4, page->va)){
 			file_write_at(aux->file, addr, aux->prd, aux->pos);
 			pml4_set_dirty(thread_current()->pml4, page->va, false);
 		}
 		pml4_clear_page(thread_current()->pml4, page->va);
+		addr+=PGSIZE;
 	}
 	// PANIC("shit\n");
 }

@@ -104,8 +104,14 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
     memcpy(&thread_current()->f_tf, if_, sizeof(struct intr_frame));
 	tid_t tid =  thread_create (name,
 			PRI_DEFAULT, __do_fork, thread_current ());
-	sema_down(&thread_current()->sema_load);
-	return tid;
+	if(tid > 0){
+		sema_down(&thread_current()->sema_load);
+		if (thread_current()->is_loaded)
+            return tid;
+        else
+            return -1;
+	}
+	return -1;
 }
 
 #ifndef VM
@@ -126,7 +132,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
-	newpage = palloc_get_page(PAL_USER|PAL_ZERO);
+	newpage = palloc_get_page(PAL_USER);
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
@@ -138,6 +144,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	 *    permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
+		palloc_free_page(newpage);
 		return false;
 	}
 	return true;
@@ -183,28 +190,32 @@ __do_fork (void *aux) {
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 	int i;
-	for(i=3; i<128; i++){
-		if(parent->fl_descr[i] == NULL){
+	for(i=2; i<=parent->num_fd; i++){
+		if(parent->fl_descr[i] != NULL){
 			// PANIC("file descriptor : %d\n", i);
-			break;
+			current->fl_descr[i] = file_duplicate(parent->fl_descr[i]);
+			// break;
 		}
 		// if(i==127){
 		// 	PANIC("i=127\n");
 		// }
-		current->fl_descr[i] = file_duplicate(parent->fl_descr[i]);
+		// current->fl_descr[i] = file_duplicate(parent->fl_descr[i]);
 	}
-
+	current->num_fd = parent->num_fd;
+	parent->is_loaded = 1;
+	sema_up(&parent->sema_load);
 	process_init ();
 	// sema_up(&current->parent->sema_load);
 	/* Finally, switch to the newly created process. */
 	if (succ){
 		if_.R.rax = 0;
-		sema_up(&current->parent->sema_load);
+		// sema_up(&current->parent->sema_load);
 		// PANIC("I'm here!!!! %d\n", if_.rsp);
 		do_iret (&if_);
 	}
 error:
-	sema_up(&current->parent->sema_load);
+	parent->is_loaded = 0;
+	sema_up(&parent->sema_load);
 	thread_exit ();
 }
 
@@ -236,12 +247,13 @@ process_exec (void *f_name) {
 	lock_release(&file_sys_lock);
 
 	/* If load failed, quit. */
-	palloc_free_page (file_name);
+	
 	// sema_up(&thread_current()->parent->sema_load);
 	if (!success)
 		return -1;
 
 	/* Start switched process. */
+	palloc_free_page (file_name);
 	do_iret (&_if);
 	NOT_REACHED ();
 }
@@ -285,6 +297,24 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+	for (int i = 2; i <= curr->num_fd; i++){
+		if (curr->fl_descr[i] != NULL) close(i);
+	}
+	if(curr->running_file) file_close(curr->running_file);
+
+	if(!list_empty(&curr->child_process)){
+		// PANIC("shit\n");
+		struct list_elem *elem_needle = list_begin(&curr->child_process);
+		while(elem_needle != list_end(&curr->child_process)){
+			struct thread *thread_needle = list_entry(elem_needle, struct thread, child_process_elem);
+			if(thread_needle->status == THREAD_DYING){
+				elem_needle = list_remove(elem_needle);
+				palloc_free_page(thread_needle);
+			}
+			else elem_needle = list_next(elem_needle);
+		}
+	}
+
 	process_cleanup ();
 	sema_up(&curr->sema_child);
 	sema_down(&curr->sema_zombie);
@@ -451,6 +481,10 @@ load (const char *file_name, struct intr_frame *if_) {
         printf ("load: %s: error loading executable\n", file_name);
         goto done;
     }
+
+	
+	t->running_file = file;
+	file_deny_write(file);
 
     /* Read program headers. */
     file_ofs = ehdr.e_phoff;

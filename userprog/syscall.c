@@ -13,6 +13,7 @@
 #include "filesys/file.h"
 #include "threads/synch.h"
 #include "kernel/stdio.h"
+#include "vm/vm.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -97,7 +98,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			break;
 		case SYS_EXEC:
 			if (!is_user_vaddr(f->R.rdi)) thread_exit();
-			f->R.rax = exec((const char *)f->R.rdi);
+			f->R.rax = exec(f->R.rdi);
 			break;
 		case SYS_WAIT:
 			f->R.rax = wait(f->R.rdi);
@@ -187,7 +188,7 @@ void
 exit(int status){
 	printf("%s: exit(%d)\n", thread_name(), status);
 	thread_current()->exit_status = status;
-	for (int i = 3; i < 128; i++){
+	for (int i = 2; i <= thread_current()->num_fd; i++){
 		if (thread_current()->fl_descr[i] != NULL) close(i);
 	}
 	thread_exit();
@@ -243,7 +244,8 @@ open (const char *file){
 	int ret;
 
 	curr = thread_current();
-	if(!is_user_vaddr(file) || file == NULL) exit(-1);
+	if(!is_user_vaddr(file)) exit(-1);
+	if(file == NULL) return -1;
 	// if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
 	lock_acquire(&file_sys_lock);
 	opened_file = filesys_open(file);
@@ -251,9 +253,11 @@ open (const char *file){
 		ret = -1;
 	}
 	else{
-		ret = 3;
-		while(curr->fl_descr[ret] != NULL) ret++;
-		if (strcmp(thread_name(), file) == 0) file_deny_write(opened_file);
+		// ret = 3;
+		// while(curr->fl_descr[ret] != NULL) ret++;
+		(curr->num_fd)++;
+		ret = curr->num_fd;
+		// if (strcmp(thread_name(), file) == 0) file_deny_write(opened_file);
 		curr->fl_descr[ret] = opened_file;
 	}
 	lock_release(&file_sys_lock);
@@ -277,9 +281,9 @@ read (int fd, void *buffer, unsigned size){
 	lock_acquire(&file_sys_lock);
 
 	if(fd == 0){
-		while(((char *)buffer)+ret == NULL) ret++;
+		ret = input_getc();
 	}
-	else if(fd>2){
+	else{
 		struct thread *curr = thread_current();
 		if(curr->fl_descr[fd] == NULL){
 			// PANIC("fd : %d\n", fd);
@@ -302,7 +306,7 @@ write (int fd, const void *buffer, unsigned size){
 		putbuf(buffer, size);
 		ret = size;
 	}
-	else if(fd>2){
+	else{
 		struct thread *curr = thread_current();
 		struct file *curr_file = curr->fl_descr[fd];
 		if(curr_file == NULL){
@@ -339,10 +343,23 @@ close (int fd){
 	struct thread *curr = thread_current();
 	struct file *curr_file = curr->fl_descr[fd];
 
+	struct supplemental_page_table *spt;
+	spt = &curr->spt;
+	struct hash_iterator i;
+	hash_first (&i, &spt->hash_table);
+	while (hash_next (&i))
+	{
+		struct page *page = hash_entry (hash_cur (&i), struct page, spt_elem);
+		if(page->operations->type == VM_UNINIT && page->uninit.type == VM_FILE && ((struct carrier *)page->uninit.aux)->file == curr_file){
+			//printf("%x\n", page->va);
+			//vm_claim_page(page);
+			//printf("HERE~~~~~~\n");
+		}
+	}
 	// if(pml4_get_page(thread_current()->pml4, curr_file) == NULL) exit(-1);
-	if(curr_file == NULL) exit(-1);
+	// if(curr_file == NULL) exit(-1);
+	//file_close(curr_file);
 	curr->fl_descr[fd] = NULL;
-	file_close(curr_file);
 }
 #ifdef VM
 void *mmap(struct intr_frame *f){
