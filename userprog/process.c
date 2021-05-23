@@ -303,6 +303,7 @@ process_exit (void) {
 		if (curr->fl_descr[i] != NULL) close(i);
 	}
 	if(curr->running_file) file_close(curr->running_file);
+	palloc_free_page(curr->fl_descr);
 
 	if(!list_empty(&curr->child_process)){
 		// PANIC("shit\n");

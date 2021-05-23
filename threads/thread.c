@@ -358,11 +358,12 @@ thread_create (const char *name, int priority,
 	// sema_init(&t->sema_load, 0);
 	// // sema_init(&t->sema_child_lock, 0);
 	// sema_init(&t->sema_child, 0);
-	// t->parent = running_thread();
-	// list_push_back(&running_thread()->child_process, &t->child_process_elem);
+	t->parent = thread_current();
+	list_push_back(&thread_current()->child_process, &t->child_process_elem);
 	// for(int i=0; i<128; i++){
 	// 	t->fl_descr[i]=NULL;
 	// }	
+	t->fl_descr = palloc_get_page(PAL_ZERO);
 
 	/* Add to run queue. */
 	thread_unblock (t);
@@ -426,7 +427,7 @@ thread_current (void) {
 	   have overflowed its stack.  Each thread has less than 4 kB
 	   of stack, so a few big automatic arrays or moderate
 	   recursion can cause stack overflow. */
-	// ASSERT (is_thread (t));
+	ASSERT (is_thread (t));
 	ASSERT (t->status == THREAD_RUNNING);
 
 	return t;
@@ -723,11 +724,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	sema_init(&t->sema_load, 0);
 	sema_init(&t->sema_zombie, 0);
 	sema_init(&t->sema_child, 0);
-	t->parent = running_thread();
-	list_push_back(&running_thread()->child_process, &t->child_process_elem);
-	for(int i=0; i<128; i++){
-		t->fl_descr[i]=NULL;
-	}
+	// t->parent = running_thread();
+	// list_push_back(&running_thread()->child_process, &t->child_process_elem);
+	// for(int i=0; i<128; i++){
+	// 	t->fl_descr[i]=NULL;
+	// }
 	t->is_loaded = 0;
 	t->num_fd = 1;
 
