@@ -113,6 +113,7 @@ void make_thread_block(int64_t ticks){
 	set_unblock_time_for_next(curr->unblock_time = ticks);
 	list_push_back(&blocked_list, &curr->elem);
 	thread_block();
+	// do_schedule(THREAD_BLOCKED);
 	intr_set_level(old_level);
 }
 
@@ -342,6 +343,24 @@ thread_create (const char *name, int priority,
 	init_thread (t, name, priority);
 	tid = t->tid = allocate_tid ();
 
+	t->parent = thread_current();
+	sema_init(&t->sema_child, 0);
+	sema_init(&t->sema_load, 0);
+	sema_init(&t->sema_zombie, 0);
+	t->fl_descr = palloc_get_page(PAL_ZERO);
+	t->exit_status = -1;
+	t->is_loaded = 0;
+	// if(!t->fl_descr){
+	// 	return TID_ERROR;
+	// }
+	t->num_fd = 1;
+	// t->fl_descr[0] = 1;
+	// t->fl_descr[1] = 1;
+
+	list_push_back(&thread_current()->child_process, &t->child_process_elem);
+	list_push_back(&all_threads, &t->all_elem);
+	t->running_file = NULL;
+
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
 	t->tf.rip = (uintptr_t) kernel_thread;
@@ -368,6 +387,7 @@ thread_create (const char *name, int priority,
 	thread_unblock (t);
 
 	change_to_max_priority();
+	// if(priority>thread_get_priority()) thread_yield();
 
 	return tid;
 }
@@ -382,8 +402,10 @@ void
 thread_block (void) {
 	ASSERT (!intr_context ());
 	ASSERT (intr_get_level () == INTR_OFF);
+	enum intr_level old_level = intr_disable();
 	thread_current ()->status = THREAD_BLOCKED;
 	schedule ();
+	intr_set_level(old_level);
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -451,8 +473,8 @@ thread_exit (void) {
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
 	intr_disable ();
+    sema_up(&thread_current()->sema_child);
 	list_remove(&thread_current()->all_elem);
-    // sema_up(&thread_current()->sema_child);
 	// sema_down(&thread_current()->sema_zombie);
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();
@@ -500,7 +522,7 @@ thread_set_priority (int new_priority) {
 	if(curr_pri < thread_current()->priority){
 		priority_donation();
 	}
-	else change_to_max_priority();
+	change_to_max_priority();
 
 	// thread_current() -> priority = new_priority;
 
@@ -523,11 +545,11 @@ thread_get_priority (void) {
 void
 thread_set_nice (int nice UNUSED) {
 	/* TODO: Your implementation goes here */
-	intr_disable();
+	enum intr_level old_level = intr_disable();
 	thread_current() -> nice = nice;
 	calc_curr_thread_pri();
 	change_to_max_priority();
-	intr_enable();
+	intr_set_level(old_level);
 }
 
 /* Returns the current thread's nice value. */
@@ -535,9 +557,9 @@ int
 thread_get_nice (void) {
 	/* TODO: Your implementation goes here */
 	int get_nice;
-	intr_disable();
+	enum intr_level old_level = intr_disable();
 	get_nice = thread_current()->nice;
-	intr_enable();
+	intr_set_level(old_level);
 	return get_nice;
 }
 
@@ -546,9 +568,9 @@ int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
 	int avg;
-	intr_disable();
+	enum intr_level old_level = intr_disable();
 	avg = round_to_nearest(load_avg*100);
-	intr_enable();
+	intr_set_level(old_level);
 	return avg;
 }
 
@@ -557,9 +579,9 @@ int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
 	int cpu;
-	intr_disable();
+	enum intr_level old_level = intr_disable();
 	cpu = round_to_nearest(thread_current()->recent_cpu*100);
-	intr_enable();
+	intr_set_level(old_level);
 	return cpu;
 }
 
@@ -710,6 +732,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+
 	t->pri_origin = priority;
 	list_init(&t->donates);
 	list_init(&t->child_process);
@@ -719,19 +742,20 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->recent_cpu = 0;
 
 	// t->parent = thread_current();
-	t->exit_status = -1;
-	sema_init(&t->sema_load, 0);
-	sema_init(&t->sema_zombie, 0);
-	sema_init(&t->sema_child, 0);
-	t->parent = running_thread();
-	list_push_back(&running_thread()->child_process, &t->child_process_elem);
-	for(int i=0; i<128; i++){
-		t->fl_descr[i]=NULL;
-	}
-	t->is_loaded = 0;
-	t->num_fd = 1;
+	// t->exit_status = -1;
+	// sema_init(&t->sema_load, 0);
+	// sema_init(&t->sema_zombie, 0);
+	// sema_init(&t->sema_child, 0);
+	// t->parent = running_thread();
+	// list_push_back(&running_thread()->child_process, &t->child_process_elem);
+	// for(int i=0; i<128; i++){
+	// 	t->fl_descr[i]=NULL;
+	// }
+	
+	// t->is_loaded = 0;
+	// t->num_fd = 1;
 
-	list_push_back(&all_threads, &t->all_elem);
+	// list_push_back(&all_threads, &t->all_elem);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -855,7 +879,7 @@ do_schedule(int status) {
 	while (!list_empty (&destruction_req)) {
 		struct thread *victim =
 			list_entry (list_pop_front (&destruction_req), struct thread, elem);
-		palloc_free_page(victim);
+		// palloc_free_page(victim);
 	}
 	thread_current ()->status = status;
 	schedule ();

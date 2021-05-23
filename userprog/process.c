@@ -59,7 +59,7 @@ process_create_initd (const char *file_name) {
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 
-	// sema_down(&thread_current()->sema_load);
+	sema_down(&get_child_process(tid)->sema_load);
 
     if (tid == TID_ERROR)
         palloc_free_page (fn_copy);
@@ -87,6 +87,7 @@ get_child_process(int pid){
 
 	curr = thread_current();
 	elem_needle = list_begin(&curr->child_process);
+	// printf("%d\n", list_size(&curr->child_process));
 	while(elem_needle != list_end(&curr->child_process)){
 		child_thread = list_entry(elem_needle, struct thread, child_process_elem);
 		if(child_thread->tid == pid) return child_thread;
@@ -105,9 +106,10 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	tid_t tid =  thread_create (name,
 			PRI_DEFAULT, __do_fork, thread_current ());
 	if(tid > 0){
-		sema_down(&thread_current()->sema_load);
-		sema_down(&thread_current()->sema_load);
-		if (thread_current()->is_loaded)
+		sema_down(&get_child_process(tid)->sema_load);
+		// sema_down(&get_child_process(tid)->sema_load);
+		// sema_down(&thread_current()->sema_load);
+		if (get_child_process(tid)->is_loaded)
             return tid;
         else
             return -1;
@@ -133,7 +135,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
-	newpage = palloc_get_page(PAL_USER);
+	newpage = palloc_get_page(PAL_USER|PAL_ZERO);
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
@@ -145,7 +147,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	 *    permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
-		palloc_free_page(newpage);
+		// palloc_free_page(newpage);
 		return false;
 	}
 	return true;
@@ -203,8 +205,8 @@ __do_fork (void *aux) {
 		// current->fl_descr[i] = file_duplicate(parent->fl_descr[i]);
 	}
 	current->num_fd = parent->num_fd;
-	parent->is_loaded = 1;
-	sema_up(&parent->sema_load);
+	current->is_loaded = 1;
+	sema_up(&current->sema_load);
 	process_init ();
 	// sema_up(&current->parent->sema_load);
 	/* Finally, switch to the newly created process. */
@@ -215,8 +217,8 @@ __do_fork (void *aux) {
 		do_iret (&if_);
 	}
 error:
-	parent->is_loaded = 0;
-	sema_up(&parent->sema_load);
+	current->is_loaded = 0;
+	sema_up(&current->sema_load);
 	thread_exit ();
 }
 
@@ -243,18 +245,20 @@ process_exec (void *f_name) {
 	#endif
 
 	/* And then load the binary */
-	lock_acquire(&file_sys_lock);
+	// lock_acquire(&file_sys_lock);
 	success = load (file_name, &_if);
-	lock_release(&file_sys_lock);
+	// lock_release(&file_sys_lock);
 
 	/* If load failed, quit. */
 	
-	// sema_up(&thread_current()->parent->sema_load);
+	sema_up(&thread_current()->sema_load);
+	palloc_free_page (file_name);
 	if (!success)
 		return -1;
 
 	/* Start switched process. */
-	palloc_free_page (file_name);
+	
+	thread_current()->is_loaded = 1;
 	do_iret (&_if);
 	NOT_REACHED ();
 }
@@ -283,7 +287,7 @@ process_wait (tid_t child_tid UNUSED) {
 	status = child_process->exit_status;
 
 	list_remove(&child_process->child_process_elem);
-	sema_up(&child_process->sema_zombie);
+	// sema_up(&child_process->sema_zombie);
 	list_remove(&child_process->elem);
 	palloc_free_page(child_process);
 	
@@ -298,28 +302,30 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
-	sema_up(&thread_current()->parent->sema_load);
+	// sema_up(&thread_current()->parent->sema_load);
 	for (int i = 2; i <= curr->num_fd; i++){
-		if (curr->fl_descr[i] != NULL) close(i);
+		close(i);
 	}
+	curr->num_fd = 1;
 	if(curr->running_file) file_close(curr->running_file);
 
-	if(!list_empty(&curr->child_process)){
-		// PANIC("shit\n");
-		struct list_elem *elem_needle = list_begin(&curr->child_process);
-		while(elem_needle != list_end(&curr->child_process)){
-			struct thread *thread_needle = list_entry(elem_needle, struct thread, child_process_elem);
-			if(thread_needle->status == THREAD_DYING){
-				elem_needle = list_remove(elem_needle);
-				palloc_free_page(thread_needle);
-			}
-			else elem_needle = list_next(elem_needle);
-		}
-	}
+	palloc_free_page(curr->fl_descr);
+	// if(!list_empty(&curr->child_process)){
+	// 	// PANIC("shit\n");
+	// 	struct list_elem *elem_needle = list_begin(&curr->child_process);
+	// 	while(elem_needle != list_end(&curr->child_process)){
+	// 		struct thread *thread_needle = list_entry(elem_needle, struct thread, child_process_elem);
+	// 		if(thread_needle->status == THREAD_DYING){
+	// 			elem_needle = list_remove(elem_needle);
+	// 			palloc_free_page(thread_needle);
+	// 		}
+	// 		else elem_needle = list_next(elem_needle);
+	// 	}
+	// }
 
 	process_cleanup ();
-	sema_up(&curr->sema_child);
-	sema_down(&curr->sema_zombie);
+	// sema_up(&curr->sema_child);
+	// sema_down(&curr->sema_zombie);
 }
 
 /* Free the current process's resources. */

@@ -79,6 +79,7 @@ void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 
+	// if(f->R.rax != 10) PANIC("%d\n", f->R.rax);
 	char *rsptr = f->rsp;
 #ifdef VM
 	thread_current()->stptr = f->rsp;
@@ -188,9 +189,12 @@ void
 exit(int status){
 	printf("%s: exit(%d)\n", thread_name(), status);
 	thread_current()->exit_status = status;
-	for (int i = 2; i <= thread_current()->num_fd; i++){
-		if (thread_current()->fl_descr[i] != NULL) close(i);
-	}
+	// for (int i = 2; i <= thread_current()->num_fd; i++){
+	// 	if (thread_current()->fl_descr[i] != NULL) {
+	// 		file_close(thread_current()->fl_descr[i]);
+	// 		thread_current()->fl_descr[i] = NULL;
+	// 	}
+	// }
 	thread_exit();
 }
 
@@ -252,13 +256,18 @@ open (const char *file){
 	if(opened_file == NULL){
 		ret = -1;
 	}
+	else if(curr->num_fd >=509){
+		lock_release(&file_sys_lock);
+		return -1;
+	}
 	else{
-		// ret = 3;
-		// while(curr->fl_descr[ret] != NULL) ret++;
-		(curr->num_fd)++;
-		ret = curr->num_fd;
+		ret = 2;
+		while(curr->fl_descr[ret] != NULL) ret++;
+		// (curr->num_fd)++;
+		// ret = curr->num_fd;
 		// if (strcmp(thread_name(), file) == 0) file_deny_write(opened_file);
 		curr->fl_descr[ret] = opened_file;
+		if(curr->num_fd < ret) curr->num_fd = ret;
 	}
 	lock_release(&file_sys_lock);
 	return ret;
@@ -340,6 +349,7 @@ tell (int fd){
 
 void
 close (int fd){
+	lock_acquire(&file_sys_lock);
 	struct thread *curr = thread_current();
 	struct file *curr_file = curr->fl_descr[fd];
 
@@ -369,7 +379,10 @@ close (int fd){
 	// if(pml4_get_page(thread_current()->pml4, curr_file) == NULL) exit(-1);
 	// if(curr_file == NULL) exit(-1);
 	file_close(curr_file);
-	curr->fl_descr[fd] = NULL;
+	curr->fl_descr[fd] = curr->fl_descr[curr->num_fd];
+	curr->fl_descr[curr->num_fd] = NULL;
+	curr->num_fd--;
+	lock_release(&file_sys_lock);
 }
 #ifdef VM
 void *mmap(struct intr_frame *f){

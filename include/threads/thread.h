@@ -115,7 +115,7 @@ struct thread {
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
 	int exit_status;
-	struct file *fl_descr[128];
+	struct file **fl_descr;
 	int num_fd;
 	struct intr_frame f_tf;
 	struct semaphore sema_load;
