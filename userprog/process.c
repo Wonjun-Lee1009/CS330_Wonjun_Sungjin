@@ -44,18 +44,21 @@ tid_t
 process_create_initd (const char *file_name) {
     char *fn_copy;
     tid_t tid;
-    char **file_name_save;
-
+    char *file_name_save;
+	// printf("\tpsrocess_create_initd\n");
     /* Make a copy of FILE_NAME.
      * Otherwise there's a race between the caller and load(). */
     fn_copy = palloc_get_page (0);
+	// printf("\tpalloc_get_page done\n");
     if (fn_copy == NULL)
         return TID_ERROR;
+	// printf("\tit's not NULL\n");
     strlcpy (fn_copy, file_name, PGSIZE);
+	// printf("\tmake copy of it\n");
 
 
-    strtok_r(file_name, " ", file_name_save);
-
+    strtok_r(file_name, " ", &file_name_save);
+	// printf("\tright before thread_create\n");
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 
@@ -72,7 +75,7 @@ initd (void *f_name) {
 #ifdef VM
 	supplemental_page_table_init (&thread_current ()->spt);
 #endif
-
+	// printf("\tinitd\n");
 	process_init ();
 
 	if (process_exec (f_name) < 0)

@@ -247,11 +247,12 @@ open (const char *file){
 	if(!is_user_vaddr(file)) exit(-1);
 	if(file == NULL) return -1;
 	// if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
-	lock_acquire(&file_sys_lock);
+	// lock_acquire(&file_sys_lock);
 	opened_file = filesys_open(file);
 	if(opened_file == NULL){
 		ret = -1;
 	}
+	else if(curr->num_fd >= 500)ret = -1;
 	else{
 		// ret = 3;
 		// while(curr->fl_descr[ret] != NULL) ret++;
@@ -260,7 +261,7 @@ open (const char *file){
 		// if (strcmp(thread_name(), file) == 0) file_deny_write(opened_file);
 		curr->fl_descr[ret] = opened_file;
 	}
-	lock_release(&file_sys_lock);
+	// lock_release(&file_sys_lock);
 	return ret;
 }
 
