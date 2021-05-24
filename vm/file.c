@@ -43,7 +43,6 @@ file_backed_swap_in (struct page *page, void *kva) {
  	size_t page_read_bytes = rec->prd;
  	size_t page_zero_bytes = rec->pzd;
 	if (file_read_at (file, page->frame->kva, page_read_bytes, pos) != (int) page_read_bytes) {
- 		// palloc_free_page(page->frame->kva);
  		return false;
  	}
  	memset (page->frame->kva + page_read_bytes, 0, page_zero_bytes);
@@ -81,27 +80,29 @@ do_mmap (void *addr, size_t length, int writable,
 
 	void *addr_original = addr;
 	struct file *refile = file_reopen(file);
-    size_t read_bytes = length > file_length(file) ? file_length(file) : length;
+    size_t read_bytes = length;
+	if(read_bytes>file_length(refile)) read_bytes = file_length(refile);
     size_t zero_bytes = PGSIZE - read_bytes % PGSIZE;
 	// printf("len : %x\n", read_bytes);
-	while(read_bytes > 0 || zero_bytes > 0){
-		size_t page_read_bytes;
-		if(read_bytes < PGSIZE) page_read_bytes = read_bytes;
-		else page_read_bytes = PGSIZE;
-        size_t page_zero_bytes = PGSIZE - page_read_bytes;
+	while (read_bytes > 0 || zero_bytes > 0) {
+		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		// printf("%x\n", addr);
 		struct carrier *aux = (struct carrier *)malloc(sizeof(struct carrier));
 		aux->file = refile;
  		aux->pos = offset;
  		aux->prd = page_read_bytes;
  		aux->pzd = page_zero_bytes;
-		if(!vm_alloc_page_with_initializer(VM_FILE, addr,
-			 writable, lazy_mmap, aux)) return NULL;
+ 		offset += page_read_bytes;
+
+
+		if (!vm_alloc_page_with_initializer (VM_FILE, addr,
+					writable, lazy_mmap, aux))
+			return false;
+
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		addr += PGSIZE;
-		offset += page_read_bytes;
 	}
 	return addr_original;
 }

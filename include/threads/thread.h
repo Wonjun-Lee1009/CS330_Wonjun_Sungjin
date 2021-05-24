@@ -131,7 +131,6 @@ struct thread {
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
 	void* stptr;
-	void* stbottom;
 #endif
 
 	/* Owned by thread.c. */
