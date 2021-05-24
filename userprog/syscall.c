@@ -358,10 +358,14 @@ close (int fd){
 			// printf("HERE~~~~~~\n");
 		}
 		if(page->operations->type == VM_FILE){
-			struct carrier *aux = (struct carrier *)page->uninit.aux;
+			struct file_page *file_page = &page->file;
+			struct file *file = file_page->file;
+			off_t pos = file_page->pos;
+			size_t page_read_bytes = file_page->prd;
+			size_t page_zero_bytes = file_page->pzd;
 			if(pml4_is_dirty(thread_current()->pml4, page->va)){
 				// printf("%x\n", page->va);
-				file_write_at(aux->file, page->va, aux->prd, aux->pos);
+				file_write_at(file, page->va, page_read_bytes, pos);
 				pml4_set_dirty(thread_current()->pml4, page->va, false);
 			}
 		}

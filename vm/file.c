@@ -35,13 +35,13 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 /* Swap in the page by read contents from the file. */
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
-	struct file_page *file_page UNUSED = &page->file;
+	struct file_page *file_page = &page->file;
 	/* added */
-	struct carrier *rec = (struct carrier *)page->uninit.aux;
- 	struct file *file = rec->file;
-	off_t pos = rec->pos;
- 	size_t page_read_bytes = rec->prd;
- 	size_t page_zero_bytes = rec->pzd;
+	// struct carrier *rec = (struct carrier *)page->uninit.aux;
+ 	struct file *file = file_page->file;
+	off_t pos = file_page->pos;
+ 	size_t page_read_bytes = file_page->prd;
+ 	size_t page_zero_bytes = file_page->pzd;
 	if (file_read_at (file, page->frame->kva, page_read_bytes, pos) != (int) page_read_bytes) {
  		return false;
  	}
@@ -52,13 +52,13 @@ file_backed_swap_in (struct page *page, void *kva) {
 /* Swap out the page by writeback contents to the file. */
 static bool
 file_backed_swap_out (struct page *page) {
-	struct file_page *file_page UNUSED = &page->file;
+	struct file_page *file_page = &page->file;
 	/* added */
-	struct carrier *rec = (struct carrier *)page->uninit.aux;
- 	struct file *file = rec->file;
-	off_t pos = rec->pos;
- 	size_t page_read_bytes = rec->prd;
- 	size_t page_zero_bytes = rec->pzd;
+	// struct carrier *rec = (struct carrier *)page->uninit.aux;
+ 	struct file *file = file_page->file;
+	off_t pos = file_page->pos;
+ 	size_t page_read_bytes = file_page->prd;
+ 	size_t page_zero_bytes = file_page->pzd;
 	if (pml4_is_dirty(thread_current()->pml4, page->va)) {
  		file_write_at(file, page->va, page_read_bytes, pos);
 		pml4_set_dirty(thread_current()->pml4, page->va, false);
@@ -115,6 +115,11 @@ lazy_mmap (struct page *page, void *aux) {
 	off_t pos = rec->pos;
  	size_t page_read_bytes = rec->prd;
  	size_t page_zero_bytes = rec->pzd;
+	 struct file_page *file_page = &page->file;
+	 file_page->file = rec->file;
+	 file_page->pos = rec->pos;
+	 file_page->prd = rec->prd;
+	 file_page->pzd = rec->pzd;
 	if (file_read_at (file, page->frame->kva, page_read_bytes, pos) != (int) page_read_bytes) {
  		palloc_free_page(page->frame->kva);
  		return false;
@@ -134,10 +139,15 @@ do_munmap (void *addr) {
 		 page!=NULL;
 		 page = spt_find_page(&thread_current()->spt, addr)){
 		//  printf("%x\n", addr);
-		aux = (struct carrier *)page->uninit.aux;
+		// aux = (struct carrier *)page->uninit.aux;
+		struct file_page *file_page = &page->file;
+		struct file *file = file_page->file;
+		off_t pos = file_page->pos;
+		size_t page_read_bytes = file_page->prd;
+		size_t page_zero_bytes = file_page->pzd;
 		if(pml4_is_dirty(thread_current()->pml4, page->va)){
 			//printf("%x\n", page->va);
-			file_write_at(aux->file, addr, aux->prd, aux->pos);
+			file_write_at(file, addr, page_read_bytes, pos);
 			pml4_set_dirty(thread_current()->pml4, page->va, false);
 		}
 		pml4_clear_page(thread_current()->pml4, page->va);
