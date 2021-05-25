@@ -195,6 +195,10 @@ vm_stack_growth (void *addr UNUSED) {
 /* Handle the fault on write_protected page */
 static bool
 vm_handle_wp (struct page *page UNUSED) {
+	struct frame* old_frame = page->frame;
+	list_remove(&page->page_elem);
+	vm_do_claim_page(page);
+	memcpy(page->frame->kva, old_frame->kva, PGSIZE);
 }
 
 /* Return true on success */
@@ -226,9 +230,12 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
             return false;
 		}
 		else{
-			if((!(page->writable)) && write){
-				return false;
+			if(!page->writable && write){
+				return vm_handle_wp(page);
 			}
+			// if(page->writable && write){
+			// 	return vm_handle_wp(page);
+			// }
 			return vm_do_claim_page(page);
 		}
 	}
@@ -302,11 +309,28 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		}
 
 		else
-		{
+		{	
+			printf("1\n");
 			vm_alloc_page(type, p_va, writable);
-			vm_claim_page(p_va);
+			// vm_claim_page(p_va);
+			printf("2\n");
 			struct page* dst_page = spt_find_page(dst, p_va);
-			memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+			printf("3\n");
+			// memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+			struct frame *p_frame = src_page->frame;
+			printf("4\n");
+			list_push_back(&p_frame->page_list, &dst_page->page_elem);
+			printf("5\n");
+			dst_page->frame = p_frame;
+			printf("6\n");
+			dst_page->writable = 0;
+			printf("7\n");
+			src_page->writable = 0;
+			printf("8\n");
+			pml4_set_page(thread_current()->pml4, p_va, p_frame->kva, false);
+			printf("9\n");
+			pml4_set_page(thread_current()->parent->pml4, p_va, p_frame->kva, false);
+			printf("10\n");
 		}
  	}
  	return true;
