@@ -49,6 +49,7 @@ struct page {
 	/* Your implementation*/
 	bool writable;
 	struct hash_elem spt_elem;
+	struct list_elem page_elem;
  	enum vm_type vm_type;
 	bool is_loaded;
 	size_t swapping;
@@ -68,7 +69,8 @@ struct page {
 /* The representation of "frame" */
 struct frame {
 	void *kva;
-	struct page *page;
+	// struct page *page;
+	struct list page_list;
 	struct list_elem ft_elem;
 };
 

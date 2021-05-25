@@ -118,15 +118,21 @@ vm_get_victim (void) {
 	struct frame *victim = NULL;
 	/* TODO: The policy for eviction is up to you. */
 	struct list_elem *elem_needle, *temp_elem;
-	for(elem_needle = list_begin(&frame_table);
-		elem_needle != list_end(&frame_table); ){
-			victim = list_entry(elem_needle, struct frame, ft_elem);
-			if(pml4_is_accessed(thread_current()->pml4, victim->page->va)){
-				elem_needle = list_next(elem_needle);
-				pml4_set_accessed(thread_current()->pml4, victim->page->va, 0);
-			}
-			else return victim;
-	}
+	// for(elem_needle = list_begin(&frame_table);
+	// 	elem_needle != list_end(&frame_table); ){
+	// 		victim = list_entry(elem_needle, struct frame, ft_elem);
+	// 		if(pml4_is_accessed(thread_current()->pml4, victim->page->va)){
+	// 			elem_needle = list_next(elem_needle);
+	// 			pml4_set_accessed(thread_current()->pml4, victim->page->va, 0);
+	// 		}
+	// 		else return victim;
+	// }
+	// printf("size: %d\n", list_size(&frame_table));
+	elem_needle = list_pop_front(&frame_table);
+	victim = list_entry(elem_needle, struct frame, ft_elem);
+	// printf("size: %d\n", list_size(&frame_table));
+	// printf("kva: %x\n", victim->kva);
+	// printf("size: %d\n", list_size(&victim->page_list));
 
 	return victim;
 }
@@ -137,7 +143,21 @@ static struct frame *
 vm_evict_frame (void) {
 	struct frame *victim = vm_get_victim ();
 	/* TODO: swap out the victim and return the evicted frame. */
-	swap_out(victim->page);
+	struct list_elem *elem_needle;
+	
+	for(elem_needle = list_begin(&victim->page_list);
+		elem_needle != list_end(&victim->page_list); ){
+			// printf("evict1!");
+			struct page *page = list_entry(elem_needle, struct page, page_elem);
+			// printf("evict2!");
+			// if(page->va == NULL) printf("NULL!");
+			swap_out(page);
+			// printf("evict3!");
+			elem_needle = list_remove(elem_needle);
+			// printf("evict4!");
+	}
+	// swap_out(victim->page);
+	list_push_back(&frame_table, &victim->ft_elem);
 	return victim;
 }
 
@@ -153,11 +173,13 @@ vm_get_frame (void) {
 	void *p = palloc_get_page(PAL_USER);
 	frame->kva = p;
  	if(p == NULL) return vm_evict_frame();
-
- 	frame->page = NULL;
+	// printf("hererer");
+ 	// frame->page = NULL;
+	 list_init(&frame->page_list);
 	 list_push_back(&frame_table, &frame->ft_elem);
 	ASSERT (frame != NULL);
-	ASSERT (frame->page == NULL);
+	// ASSERT (frame->page == NULL);
+	ASSERT (list_size(&frame->page_list) == 0);
 	return frame;
 }
 
@@ -238,7 +260,8 @@ vm_do_claim_page (struct page *page) {
 	struct frame *frame = vm_get_frame ();
 
 	/* Set links */
-	frame->page = page;
+	// frame->page = page;
+	list_push_back(&frame->page_list, &page->page_elem);
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
