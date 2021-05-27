@@ -308,18 +308,18 @@ process_exit (void) {
 	if(curr->running_file) file_close(curr->running_file);
 	palloc_free_page(curr->fl_descr);
 
-	if(!list_empty(&curr->child_process)){
-		// PANIC("shit\n");
-		struct list_elem *elem_needle = list_begin(&curr->child_process);
-		while(elem_needle != list_end(&curr->child_process)){
-			struct thread *thread_needle = list_entry(elem_needle, struct thread, child_process_elem);
-			if(thread_needle->status == THREAD_DYING){
-				elem_needle = list_remove(elem_needle);
-				palloc_free_page(thread_needle);
-			}
-			else elem_needle = list_next(elem_needle);
-		}
-	}
+	// if(!list_empty(&curr->child_process)){
+	// 	// PANIC("shit\n");
+	// 	struct list_elem *elem_needle = list_begin(&curr->child_process);
+	// 	while(elem_needle != list_end(&curr->child_process)){
+	// 		struct thread *thread_needle = list_entry(elem_needle, struct thread, child_process_elem);
+	// 		if(thread_needle->status == THREAD_DYING){
+	// 			elem_needle = list_remove(elem_needle);
+	// 			palloc_free_page(thread_needle);
+	// 		}
+	// 		else elem_needle = list_next(elem_needle);
+	// 	}
+	// }
 
 	process_cleanup ();
 	sema_up(&curr->sema_child);

@@ -197,8 +197,13 @@ static bool
 vm_handle_wp (struct page *page UNUSED) {
 	struct frame* old_frame = page->frame;
 	list_remove(&page->page_elem);
-	vm_do_claim_page(page);
-	memcpy(page->frame->kva, old_frame->kva, PGSIZE);
+    struct frame *newframe = vm_get_frame();
+    list_push_back(&newframe->page_list, &page->page_elem);
+    page->frame = newframe;
+    bool wr = page->writable;
+    bool succ = pml4_set_page(thread_current()->pml4, page->va, newframe->kva, true);
+    memcpy(newframe->kva, old_frame->kva, PGSIZE);
+    return swap_in(page, newframe->kva);
 }
 
 /* Return true on success */
@@ -218,7 +223,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 
 	page = spt_find_page(spt, addr);
 
-	if(not_present){
+	// if(not_present){
 		if(page == NULL){
 			if(USER_STACK - (1<<20) <= addr && addr <= USER_STACK)
             {
@@ -238,8 +243,8 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 			// }
 			return vm_do_claim_page(page);
 		}
-	}
-    else return false;
+	// }
+    // else return false;
 }
 
 /* Free the page.
@@ -347,6 +352,13 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	while (hash_next (&i))
 	{
 		struct page *page = hash_entry (hash_cur (&i), struct page, spt_elem);
+		if(page->frame == NULL) continue;
+		list_remove(&page->page_elem);
+		if(list_size(&page->frame->page_list) == 1){
+			struct list_elem * only_page_elem = list_begin(&page->frame->page_list);
+			struct page * only_page = list_entry(only_page_elem, struct page, page_elem);
+			pml4_set_page(thread_current()->pml4, only_page->va, page->frame->kva, true);
+		}
 		destroy(page);
 	}
 }
