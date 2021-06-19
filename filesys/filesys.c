@@ -7,6 +7,7 @@
 #include "filesys/inode.h"
 #include "filesys/directory.h"
 #include "devices/disk.h"
+#include "threads/thread.h"
 
 /* The disk that contains the file system. */
 struct disk *filesys_disk;
@@ -30,6 +31,10 @@ filesys_init (bool format) {
 		do_format ();
 
 	fat_open ();
+	thread_current()->curr_dir = dir_open_root();
+    dir_add(thread_current()->curr_dir, ".", ROOT_DIR_SECTOR);
+    dir_add(thread_current()->curr_dir, "..", ROOT_DIR_SECTOR);
+    dir_close(thread_current()->curr_dir);
 #else
 	/* Original FS */
 	free_map_init ();
@@ -59,6 +64,23 @@ filesys_done (void) {
  * or if internal memory allocation fails. */
 bool
 filesys_create (const char *name, off_t initial_size) {
+
+
+	#ifdef EFILESYS
+	cluster_t inode_cluster = fat_create_chain(0);
+	disk_sector_t inode_sector = inode_cluster;
+	char file[FILE_LEN_MAX +1];
+	struct dir *dir = path_to_file(name, file);
+	bool success = (dir != NULL
+			&& inode_cluster
+			&& inode_create (inode_sector, initial_size, FILE)
+			&& dir_add (dir, file, inode_sector));
+
+	if (!success && inode_cluster != 0)
+        fat_remove_chain(inode_cluster, 0);
+	
+	dir_close(dir);
+	#else
 	disk_sector_t inode_sector = 0;
 	struct dir *dir = dir_open_root ();
 	bool success = (dir != NULL
@@ -70,6 +92,8 @@ filesys_create (const char *name, off_t initial_size) {
 	dir_close (dir);
 
 	return success;
+
+	#endif
 }
 
 /* Opens the file with the given NAME.
@@ -79,6 +103,31 @@ filesys_create (const char *name, off_t initial_size) {
  * or if an internal memory allocation fails. */
 struct file *
 filesys_open (const char *name) {
+	#ifdef EFILESYS
+	char file[NAME_MAX+1];
+	struct dir *dir;
+	struct inode *inode;
+	bool is_dir_null;
+
+	dir = path_to_file(name, file);
+	inode = NULL;
+	if(dir == NULL) is_dir_null = true;
+
+	while(!is_dir_null){
+		dir_lookup(dir, file, &inode);
+		if(inode == NULL) break;
+		else if(inode->data.is_sym){
+			dir_close(dir);
+			name = inode->data.link;
+		}
+		dir = path_to_file(name, file);
+		if(dir == NULL) is_dir_null = true;
+	}
+
+	dir_close(dir);
+	return file_open(inode);
+
+	#else
 	struct dir *dir = dir_open_root ();
 	struct inode *inode = NULL;
 
@@ -87,6 +136,7 @@ filesys_open (const char *name) {
 	dir_close (dir);
 
 	return file_open (inode);
+	#endif
 }
 
 /* Deletes the file named NAME.
@@ -95,10 +145,87 @@ filesys_open (const char *name) {
  * or if an internal memory allocation fails. */
 bool
 filesys_remove (const char *name) {
+	#ifdef EFILESYS
+	char file[NAME_MAX+1];
+	char name_tmp[NAME_MAX+1];
+	struct dir *dir, *dir_opened;
+	struct inode *inode;
+	bool success;
+
+	dir = parse_path(name, file);
+	inode = NULL;
+	if(dir == NULL){
+		dir_close(dir);
+		success = false;
+	}
+	else{
+		dir_lookup(dir, file, &inode);
+		if(!inode_is_dir(inode)){ //file
+			inode_close(inode);
+			if(dir && dir_remove(dir, file)) success = true;
+		}
+		else{ //directory
+			dir_opened = dir_open(inode);
+			if(dir_readdir(dir_opened, name_tmp)){
+				if(dir && dir_remove(dir_opened, file))
+					success = true;
+				else
+					success = false;
+			}
+			else{
+				struct dir *curr_dir = thread_current()->curr_dir;
+				disk_sector_t curr_dir_location, opened_dir_location;
+				curr_dir_location = inode_get_inumber(dir_get_inode(curr_dir));
+				opened_dir_location = inode_get_inumber(dir_get_inode(dir_opened));
+				if(curr_dir_location != opened_dir_location){
+					if(dir && dir_remove(dir, file))
+						success = true;
+					else
+						success = false;
+				}
+			}
+			dir_close(dir_opened);
+		}
+	}
+	return success;
+
+	#else
 	struct dir *dir = dir_open_root ();
 	bool success = dir != NULL && dir_remove (dir, name);
 	dir_close (dir);
+	
+	return success;
+	#endif
+}
 
+bool filesys_mkdir(const char *name){
+	char file[FILE_LEN_MAX +1];
+	bool success = false;
+
+	struct dir *dir = parse_path(name, file);
+	struct dir *dir_named_file;
+	struct inode *inode_for_dir_named_file;
+	cluster_t clst = fat_create_chain(0);
+	
+	success = (dir != NULL
+			&& clst
+			&& dir_create (clst, 16)
+			&& dir_add (dir, file, clst));
+
+	if(success){
+		dir_lookup(dir, file, &inode_for_dir_named_file);
+		dir_named_file = dir_open(inode_for_dir_named_file);
+		struct inode * tmp = dir_get_inode(dir);
+		dir_add(dir_named_file, ".", clst);
+		dir_add(dir_named_file, "..", inode_get_inumber(tmp));
+		dir_close(dir_named_file);
+		dir_close(dir);
+	}
+
+	if (!success && clst != 0)
+		fat_remove_chain(clst, 0);
+
+	dir_close(dir);
 	return success;
 }
 
@@ -110,6 +237,10 @@ do_format (void) {
 #ifdef EFILESYS
 	/* Create FAT and save it to the disk. */
 	fat_create ();
+
+	if (!dir_create(ROOT_DIR_SECTOR, 16))
+        PANIC("root directory creation failed");
+
 	fat_close ();
 #else
 	free_map_create ();
@@ -119,4 +250,64 @@ do_format (void) {
 #endif
 
 	printf ("done.\n");
+}
+
+struct dir *
+path_to_file(char *path, char *file){
+	struct dir *dir = NULL;
+	char path_cpy[FILE_LEN_MAX+1];
+
+	if(path == NULL || file == NULL || strlen(path) == 0) return NULL;
+	strlcpy(path_cpy, path, FILE_LEN_MAX+1);
+
+	if(path_cpy[0] == '/') dir = dir_open_root();
+	// else if(thread_current()->curr_dir == NULL) dir = dir_open_root();
+	else dir = dir_reopen(thread_current()->curr_dir);
+	
+	char *token, *token_next, *token_save;
+	token = strtok_r(path_cpy, "/", &token_save);
+	token_next = strtok_r(NULL, "/", &token_save);
+
+	if(token == NULL){
+		strlcpy(file, ".", NAME_MAX);
+		return dir;
+	}
+
+	while(token != NULL && token_next != NULL){
+		struct inode *inode_tmp;
+
+		if(!dir_lookup(dir, token, &inode_tmp)){
+			dir_close(dir);
+			return NULL;
+		}
+
+		if(!inode_tmp->data.is_sym){
+			if(!inode_is_dir(inode_tmp)){
+				dir_close(dir);
+				inode_close(inode_tmp);
+				return NULL;
+			}
+			dir_close(dir);
+			dir = dir_open(inode_tmp);
+			token = token_next;
+			token_next = strtok_r(NULL, "/", &token_save);
+		}
+		else{
+			char link_cpy[FILE_LEN_MAX+1];
+			strlcpy(link_cpy, inode_tmp->data.link, FILE_LEN_MAX+1);
+			strlcpy(path, link_cpy, strlen(link_cpy) + 1);
+
+			strlcat(path, token_next, strlen(path) + strlen(token_next) + 1);
+			strlcat(path, token_save, strlen(path) + strlen(token_save) + 1);
+
+			dir_close(dir);
+
+			if(path[0] == '/') dir = dir_open_root();
+			// else if(thread_current()->curr_dir == NULL) dir = dir_open_root();
+			else dir = dir_reopen(thread_current()->curr_dir);
+
+			token = strtok_r(path, "/", &token_save);
+			token_next = strtok_r(NULL, "/", &token_save);
+		}
+	}
 }

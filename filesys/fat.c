@@ -153,6 +153,12 @@ fat_boot_create (void) {
 void
 fat_fs_init (void) {
 	/* TODO: Your code goes here. */
+	fat_fs->fat = NULL;
+	fat_fs->fat_length = fat_fs->bs.fat_sectors * DISK_SECTOR_SIZE 
+								/ (sizeof(cluster_t) * SECTORS_PER_CLUSTER);
+	fat_fs->data_start = fat_fs->bs.fat_start + fat_fs->bs.fat_sectors;
+	fat_fs->last_clst = fat_fs->fat_length-1;
+	lock_init(&fat_fs->write_lock);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -165,6 +171,23 @@ fat_fs_init (void) {
 cluster_t
 fat_create_chain (cluster_t clst) {
 	/* TODO: Your code goes here. */
+	cluster_t clst_needle;
+	clst_needle = 2;
+
+	while(fat_get(clst_needle)){
+		if(clst_needle == fat_fs->fat_length) return 0;
+		else if(clst_needle > fat_fs->fat_length){
+			fat_put(clst_needle, EOChain);
+			break;
+		}
+		else clst_needle++;
+	}
+	
+	if(!clst){
+		while(fat_get(clst) != EOChain) clst = fat_get(clst);
+		fat_put(clst, clst_needle);
+	}
+	return clst_needle;
 }
 
 /* Remove the chain of clusters starting from CLST.
@@ -172,22 +195,31 @@ fat_create_chain (cluster_t clst) {
 void
 fat_remove_chain (cluster_t clst, cluster_t pclst) {
 	/* TODO: Your code goes here. */
+	cluster_t clst_tmp, clst_needle;
+	for(clst_needle = clst; fat_get(clst_needle) != EOChain; clst_needle = clst_tmp){
+		clst_tmp = fat_get(clst_needle);
+		fat_put(clst_needle, 0);
+	}
+	if(pclst!=0) fat_put(pclst, EOChain);
 }
 
 /* Update a value in the FAT table. */
 void
 fat_put (cluster_t clst, cluster_t val) {
 	/* TODO: Your code goes here. */
+	fat_fs->fat[clst] = val;
 }
 
 /* Fetch a value in the FAT table. */
 cluster_t
 fat_get (cluster_t clst) {
 	/* TODO: Your code goes here. */
+	return fat_fs->fat[clst];
 }
 
 /* Covert a cluster # to a sector number. */
 disk_sector_t
 cluster_to_sector (cluster_t clst) {
 	/* TODO: Your code goes here. */
+	return fat_fs->data_start + clst;
 }

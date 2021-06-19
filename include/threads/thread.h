@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/interrupt.h"
 #include "threads/synch.h"
+#include "filesys/directory.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -110,6 +111,8 @@ struct thread {
 	/* Added for Advanced scheduler */
 	int nice;
 	int recent_cpu;
+
+	struct dir* curr_dir;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
