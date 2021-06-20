@@ -11,6 +11,7 @@
 #include "userprog/process.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "filesys/inode.h"
 #include "threads/synch.h"
 #include "kernel/stdio.h"
 #include "vm/vm.h"
@@ -36,6 +37,12 @@ unsigned tell (int fd);
 void close (int fd);
 void *mmap(struct intr_frame *f);
 void munmap(void *addr);
+bool chdir (const char *dir);
+bool mkdir (const char *dir);
+bool readdir (int fd, char *name);
+bool isdir (int fd);
+int inumber (int fd);
+int symlink (const char *target, const char *linkpath);
 
 
 /* System call.
@@ -143,6 +150,25 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			break;
 		case SYS_MUNMAP:
 			munmap(f->R.rdi);
+			break;
+		#endif
+		#ifdef EFILESYS
+		case SYS_CHDIR:
+			f->R.rax = chdir(f->R.rdi);
+			break;
+		case SYS_MKDIR:
+			f->R.rax = mkdir(f->R.rdi);
+			break;
+		case SYS_READDIR:
+			f->R.rax = readdir(f->R.rdi, f->R.rsi);
+			break;
+		case SYS_ISDIR:
+			f->R.rax = isdir(f->R.rdi);
+			break;
+		case SYS_INUMBER:
+			f->R.rax = inumber(f->R.rdi);
+		case SYS_SYMLINK:
+			f->R.rax = symlink(f->R.rdi, f->R.rsi);
 			break;
 		#endif
 		default:
@@ -387,5 +413,77 @@ void *mmap(struct intr_frame *f){
 
 void munmap(void *addr){
 	do_munmap(addr);
+}
+#endif
+
+#ifdef EFILESYS
+bool chdir (const char *dir){
+	bool ret = false;
+	if(dir){
+		lock_acquire(&file_sys_lock);
+		ret = filesys_chdir(dir);
+		lock_release(&file_sys_lock);
+	}
+	return ret;
+}
+
+bool mkdir (const char *dir){
+	bool ret;
+	lock_acquire(&file_sys_lock);
+	ret = filesys_mkdir(dir);
+	lock_release(&file_sys_lock);
+	return ret;
+}
+
+bool readdir (int fd, char *name){
+	bool ret = false;
+	if(name != NULL && isdir(fd) == true){
+		struct dir *dir_file = (struct dir *)thread_current()->fl_descr[fd];
+		if(dir_file->pos == 0)
+			dir_file->pos = 2 * sizeof(struct dir_entry);
+		ret = dir_readdir(dir_file, name);
+	}
+	return ret;
+}
+
+bool isdir (int fd){
+	struct file *file = thread_current()->fl_descr[fd];
+	int ret = 0;
+	if(file){
+		lock_acquire(&file_sys_lock);
+		ret = inode_is_dir(file_get_inode(file));
+		lock_release(&file_sys_lock);
+	}
+	return ret;
+}
+
+int inumber (int fd){
+	struct file *file = thread_current()->fl_descr[fd];
+	int ret = 0;
+	if(file){
+		lock_acquire(&file_sys_lock);
+		ret = inode_get_inumber(file_get_inode(file));
+		lock_release(&file_sys_lock);
+	}
+	return ret;
+}
+
+int symlink (const char *target, const char *linkpath){
+	int ret = 0;
+	char file[NAME_MAX+1];
+	cluster_t cluster = fat_create_chain(0);
+	struct dir *dir = path_to_file(linkpath, file);
+
+	if(dir){
+		if(symlink_inode_create(cluster, target)){
+			ret = dir_add(dir, file, cluster) - 1;
+		}
+	}
+	if (ret = -1 && cluster != 0)
+        fat_remove_chain(cluster, 0);
+    
+    dir_close(dir);
+
+	return ret;
 }
 #endif

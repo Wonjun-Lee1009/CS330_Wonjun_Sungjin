@@ -27,14 +27,18 @@ filesys_init (bool format) {
 #ifdef EFILESYS
 	fat_init ();
 
-	if (format)
+	if (format){
 		do_format ();
+		fat_open();
+		struct dir* dir = dir_open_root();
+		dir_add(dir, ".", ROOT_DIR_SECTOR);
+		dir_add(dir, "..", ROOT_DIR_SECTOR);
+		dir_close(dir);
+		fat_close();
+	}
 
 	fat_open ();
 	thread_current()->curr_dir = dir_open_root();
-    dir_add(thread_current()->curr_dir, ".", ROOT_DIR_SECTOR);
-    dir_add(thread_current()->curr_dir, "..", ROOT_DIR_SECTOR);
-    dir_close(thread_current()->curr_dir);
 #else
 	/* Original FS */
 	free_map_init ();
@@ -152,7 +156,7 @@ filesys_remove (const char *name) {
 	struct inode *inode;
 	bool success;
 
-	dir = parse_path(name, file);
+	dir = path_to_file(name, file);
 	inode = NULL;
 	if(dir == NULL){
 		dir_close(dir);
@@ -198,11 +202,23 @@ filesys_remove (const char *name) {
 	#endif
 }
 
+bool filesys_chdir(const char *name){
+	bool ret = false;
+	char file[NAME_MAX+1];
+	struct dir *dir = path_to_file(name, file);
+	if(dir){
+		dir_close(thread_current()->curr_dir);
+    	thread_current()->curr_dir = dir;
+    	ret = true;
+	}
+	return ret;
+}
+
 bool filesys_mkdir(const char *name){
 	char file[FILE_LEN_MAX +1];
 	bool success = false;
 
-	struct dir *dir = parse_path(name, file);
+	struct dir *dir = path_to_file(name, file);
 	struct dir *dir_named_file;
 	struct inode *inode_for_dir_named_file;
 	cluster_t clst = fat_create_chain(0);
@@ -219,7 +235,7 @@ bool filesys_mkdir(const char *name){
 		dir_add(dir_named_file, ".", clst);
 		dir_add(dir_named_file, "..", inode_get_inumber(tmp));
 		dir_close(dir_named_file);
-		dir_close(dir);
+		// dir_close(dir);
 	}
 
 	if (!success && clst != 0)
@@ -236,7 +252,7 @@ do_format (void) {
 
 #ifdef EFILESYS
 	/* Create FAT and save it to the disk. */
-	fat_create ();
+	fat_crceate ();
 
 	if (!dir_create(ROOT_DIR_SECTOR, 16))
         PANIC("root directory creation failed");
@@ -295,10 +311,11 @@ path_to_file(char *path, char *file){
 		else{
 			char link_cpy[FILE_LEN_MAX+1];
 			strlcpy(link_cpy, inode_tmp->data.link, FILE_LEN_MAX+1);
-			strlcpy(path, link_cpy, strlen(link_cpy) + 1);
+			strlcpy(path_cpy, link_cpy, strlen(link_cpy) + 1);
 
-			strlcat(path, token_next, strlen(path) + strlen(token_next) + 1);
-			strlcat(path, token_save, strlen(path) + strlen(token_save) + 1);
+			strlcat(path_cpy, "/", strlen(path_cpy) + 2);
+			strlcat(path_cpy, token_next, strlen(path_cpy) + strlen(token_next) + 1);
+			strlcat(path_cpy, token_save, strlen(path_cpy) + strlen(token_save) + 1);
 
 			dir_close(dir);
 
@@ -310,4 +327,5 @@ path_to_file(char *path, char *file){
 			token_next = strtok_r(NULL, "/", &token_save);
 		}
 	}
+	return dir;
 }

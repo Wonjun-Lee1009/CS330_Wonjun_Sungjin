@@ -5,11 +5,12 @@
 #include "filesys/off_t.h"
 #include "devices/disk.h"
 #include "filesys/filesys.h"
+#include <list.h>
 
 struct bitmap;
 
 void inode_init (void);
-bool inode_create (disk_sector_t, off_t, enum inode_type);
+bool inode_create (disk_sector_t, off_t, int);
 struct inode *inode_open (disk_sector_t);
 struct inode *inode_reopen (struct inode *);
 disk_sector_t inode_get_inumber (const struct inode *);
@@ -21,6 +22,8 @@ void inode_deny_write (struct inode *);
 void inode_allow_write (struct inode *);
 off_t inode_length (const struct inode *);
 enum inode_type{FILE, DIR};
+bool symlink_inode_create(disk_sector_t sector, char *path);
+bool inode_is_dir(struct inode *inode);
 
 /* On-disk inode.
  * Must be exactly DISK_SECTOR_SIZE bytes long. */

@@ -54,7 +54,7 @@ inode_init (void) {
  * Returns true if successful.
  * Returns false if memory or disk allocation fails. */
 bool
-inode_create (disk_sector_t sector, off_t length) {
+inode_create (disk_sector_t sector, off_t length, int file_or_dir) {
 	struct inode_disk *disk_inode = NULL;
 	bool success = false;
 
@@ -64,6 +64,36 @@ inode_create (disk_sector_t sector, off_t length) {
 	 * one sector in size, and you should fix that. */
 	ASSERT (sizeof *disk_inode == DISK_SECTOR_SIZE);
 
+	#ifdef EFILESYS
+	disk_inode = calloc (1, sizeof *disk_inode);
+	if(disk_inode != NULL){
+		size_t num_sectors = bytes_to_sectors(length);
+		disk_inode->length = length;
+		disk_inode->magic = INODE_MAGIC;
+		disk_inode->file_or_dir = file_or_dir;
+		cluster_t cluster = fat_create_chain(0);
+		if(cluster){
+			disk_inode->start = cluster;
+			disk_write(filesys_disk, cluster_to_sector(sector), disk_inode);
+
+			for(int i = 1; i<num_sectors; i++){
+				cluster = fat_create_chain(cluster);
+				if(cluster == NULL) return false;
+			}
+			
+			static char empty[DISK_SECTOR_SIZE];
+			
+			cluster_t cluster_tmp = disk_inode->start;
+			for(int i = 0; i<num_sectors; i++){
+				disk_write(filesys_disk, cluster_tmp, empty);
+				cluster_tmp = fat_get(cluster_tmp);
+			}
+		}
+		success = true;
+	}
+	else return false;
+	free(disk_inode);
+	#else
 	disk_inode = calloc (1, sizeof *disk_inode);
 	if (disk_inode != NULL) {
 		size_t sectors = bytes_to_sectors (length);
@@ -82,6 +112,7 @@ inode_create (disk_sector_t sector, off_t length) {
 		} 
 		free (disk_inode);
 	}
+	#endif
 	return success;
 }
 
@@ -148,9 +179,14 @@ inode_close (struct inode *inode) {
 
 		/* Deallocate blocks if removed. */
 		if (inode->removed) {
+			#ifdef EFILESYS
+			fat_put(inode->sector, 0);
+			fat_remove_chain(inode->data.start, 0);
+			#else
 			free_map_release (inode->sector, 1);
 			free_map_release (inode->data.start,
 					bytes_to_sectors (inode->data.length)); 
+			#endif
 		}
 
 		free (inode); 
@@ -225,11 +261,28 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 	const uint8_t *buffer = buffer_;
 	off_t bytes_written = 0;
 	uint8_t *bounce = NULL;
+	bool is_checked = false;
 
 	if (inode->deny_write_cnt)
 		return 0;
 
 	while (size > 0) {
+		if(!is_checked){
+			static char empty[DISK_SECTOR_SIZE];
+			if(inode_length(inode) < offset + size){
+				size_t sectors_to_add = bytes_to_sectors(offset + size)
+											- bytes_to_sectors(inode_length(inode));
+				if(sectors_to_add >= 1){
+					for(int i = 1; i <= sectors_to_add; i++){
+						cluster_t cluster = fat_create_chain(inode->data.start);
+						disk_write(filesys_disk, cluster_to_sector(cluster), empty);
+					}
+				}
+				inode->data.length = offset + size;
+				disk_write(filesys_disk, cluster_to_sector(inode->sector), &inode->data);
+			}
+			is_checked = true;
+		}
 		/* Sector to write, starting byte offset within sector. */
 		disk_sector_t sector_idx = byte_to_sector (inode, offset);
 		int sector_ofs = offset % DISK_SECTOR_SIZE;
@@ -299,4 +352,38 @@ inode_allow_write (struct inode *inode) {
 off_t
 inode_length (const struct inode *inode) {
 	return inode->data.length;
+}
+
+bool
+symlink_inode_create(disk_sector_t sector, char *path){
+	struct inode_disk *disk_inode = NULL;
+	bool success = false;
+
+	ASSERT (sizeof *disk_inode == DISK_SECTOR_SIZE);
+	disk_inode = calloc(1, sizeof *disk_inode);
+	if(disk_inode != NULL){
+		disk_inode->length = strlen(path)+1;
+		disk_inode->is_sym = true;
+		disk_inode->magic = INODE_MAGIC;
+		disk_inode->file_or_dir = FILE;
+		strlcpy(disk_inode->link, path, strlen(path)+1);
+		cluster_t cluster = fat_create_chain(0);
+		if(cluster){
+			disk_inode->start = cluster;
+			disk_write(filesys_disk, cluster_to_sector(sector), disk_inode);
+			success = true;
+		}
+	}
+	free(disk_inode);
+	return success;
+}
+
+bool
+inode_is_dir(struct inode *inode){
+	bool ret = true;
+	struct inode_disk *disk_inode = calloc(1, sizeof *disk_inode);
+	disk_read(filesys_disk, cluster_to_sector(inode->sector), disk_inode);
+	if(disk_inode->file_or_dir == FILE) ret = false;
+	free(disk_inode);
+	return ret;
 }

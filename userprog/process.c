@@ -324,6 +324,9 @@ process_exit (void) {
 	process_cleanup ();
 	sema_up(&curr->sema_child);
 	sema_down(&curr->sema_zombie);
+	#ifdef EFILESYS
+	dir_close(thread_current()->curr_dir);
+	#endif
 }
 
 /* Free the current process's resources. */

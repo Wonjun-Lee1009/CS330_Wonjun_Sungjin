@@ -176,12 +176,10 @@ fat_create_chain (cluster_t clst) {
 
 	while(fat_get(clst_needle)){
 		if(clst_needle == fat_fs->fat_length) return 0;
-		else if(clst_needle > fat_fs->fat_length){
-			fat_put(clst_needle, EOChain);
-			break;
-		}
 		else clst_needle++;
 	}
+
+	fat_put(clst_needle, EOChain);
 	
 	if(!clst){
 		while(fat_get(clst) != EOChain) clst = fat_get(clst);
