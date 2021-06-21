@@ -29,12 +29,6 @@ filesys_init (bool format) {
 
 	if (format){
 		do_format ();
-		fat_open();
-		struct dir* dir = dir_open_root();
-		dir_add(dir, ".", ROOT_DIR_SECTOR);
-		dir_add(dir, "..", ROOT_DIR_SECTOR);
-		dir_close(dir);
-		fat_close();
 	}
 
 	fat_open ();
@@ -68,8 +62,6 @@ filesys_done (void) {
  * or if internal memory allocation fails. */
 bool
 filesys_create (const char *name, off_t initial_size) {
-
-
 	#ifdef EFILESYS
 	cluster_t inode_cluster = fat_create_chain(0);
 	disk_sector_t inode_sector = inode_cluster;
@@ -84,6 +76,7 @@ filesys_create (const char *name, off_t initial_size) {
         fat_remove_chain(inode_cluster, 0);
 	
 	dir_close(dir);
+	return success;
 	#else
 	disk_sector_t inode_sector = 0;
 	struct dir *dir = dir_open_root ();
@@ -252,12 +245,17 @@ do_format (void) {
 
 #ifdef EFILESYS
 	/* Create FAT and save it to the disk. */
-	fat_crceate ();
+	fat_create ();
 
 	if (!dir_create(ROOT_DIR_SECTOR, 16))
         PANIC("root directory creation failed");
 
+	struct dir *dir = dir_open_root();
+	dir_add(dir, ".", ROOT_DIR_SECTOR);
+	dir_add(dir, "..", ROOT_DIR_SECTOR);
+	dir_close(dir);
 	fat_close ();
+	
 #else
 	free_map_create ();
 	if (!dir_create (ROOT_DIR_SECTOR, 16))

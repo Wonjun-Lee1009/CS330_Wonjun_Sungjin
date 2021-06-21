@@ -181,7 +181,7 @@ fat_create_chain (cluster_t clst) {
 
 	fat_put(clst_needle, EOChain);
 	
-	if(!clst){
+	if(clst){
 		while(fat_get(clst) != EOChain) clst = fat_get(clst);
 		fat_put(clst, clst_needle);
 	}
