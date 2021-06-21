@@ -167,6 +167,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			break;
 		case SYS_INUMBER:
 			f->R.rax = inumber(f->R.rdi);
+			break;
 		case SYS_SYMLINK:
 			f->R.rax = symlink(f->R.rdi, f->R.rsi);
 			break;
@@ -278,7 +279,7 @@ open (const char *file){
 	if(opened_file == NULL){
 		ret = -1;
 	}
-	else if(curr->num_fd >= 500)ret = -1;
+	else if(curr->num_fd >= 511)ret = -1;
 	else{
 		// ret = 3;
 		// while(curr->fl_descr[ret] != NULL) ret++;
@@ -341,7 +342,8 @@ write (int fd, const void *buffer, unsigned size){
 			exit(-1);
 		}
 		// file_deny_write(curr_file);
-		ret = file_write(curr_file, buffer, size);
+		struct inode *inode = file_get_inode(curr_file);
+		if(!inode_is_dir(inode)) ret = file_write(curr_file, buffer, size);
 	}
 	lock_release(&file_sys_lock);
 	return ret;
