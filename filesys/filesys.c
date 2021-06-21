@@ -111,7 +111,7 @@ filesys_open (const char *name) {
 	inode = NULL;
 	if(dir!=NULL){
 		dir_lookup(dir, file, &inode);
-		if(!inode->data.is_sym){
+		if(!inode || !inode->data.is_sym){ // if there's no file or it is not a link file
 			dir_close(dir);
 			return file_open(inode);
 		}
@@ -157,7 +157,7 @@ filesys_remove (const char *name) {
 	dir = path_to_file(name, file);
 	inode = NULL;
 	if(dir == NULL){
-		dir_close(dir);
+		// dir_close(dir);
 		success = false;
 	}
 	else{
@@ -165,7 +165,7 @@ filesys_remove (const char *name) {
 		if(!inode_is_dir(inode)){ //file
 			inode_close(inode);
 			if(dir && dir_remove(dir, file)) success = true;
-			dir_close(dir);
+			// dir_close(dir);
 		}
 		else{ //directory
 			dir_opened = dir_open(inode);
@@ -191,6 +191,7 @@ filesys_remove (const char *name) {
 			dir_close(dir_opened);
 		}
 	}
+	dir_close(dir);
 	return success;
 
 	#else

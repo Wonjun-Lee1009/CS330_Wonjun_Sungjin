@@ -72,6 +72,7 @@ inode_create (disk_sector_t sector, off_t length, int file_or_dir) {
 		disk_inode->length = length;
 		disk_inode->magic = INODE_MAGIC;
 		disk_inode->file_or_dir = file_or_dir;
+		disk_inode->is_sym = false;
 		cluster_t cluster = fat_create_chain(0);
 		if(cluster){
 			disk_inode->start = cluster;
