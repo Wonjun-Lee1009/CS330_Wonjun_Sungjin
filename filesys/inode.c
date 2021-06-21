@@ -25,7 +25,8 @@ static disk_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) {
 	#ifdef EFILESYS
 	cluster_t cluster = inode->data.start;
-	for(int i = 0; i < pos / DISK_SECTOR_SIZE; i++){
+	int where = pos / DISK_SECTOR_SIZE;
+	for(int i = 0; i < where; i++){
 		cluster = fat_get(cluster);
 	}
 	return cluster_to_sector(cluster);

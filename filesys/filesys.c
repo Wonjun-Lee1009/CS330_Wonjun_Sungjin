@@ -67,6 +67,7 @@ filesys_create (const char *name, off_t initial_size) {
 	disk_sector_t inode_sector = inode_cluster;
 	char file[FILE_LEN_MAX +1];
 	struct dir *dir = path_to_file(name, file);
+	// struct dir *dir = dir_open_root();
 	bool success = (dir != NULL
 			&& inode_cluster
 			&& inode_create (inode_sector, initial_size, FILE)
@@ -104,23 +105,27 @@ filesys_open (const char *name) {
 	char file[NAME_MAX+1];
 	struct dir *dir;
 	struct inode *inode;
-	bool is_dir_null;
 
 	dir = path_to_file(name, file);
+	// PANIC("%s\n", file);
 	inode = NULL;
-	if(dir == NULL) is_dir_null = true;
-
-	while(!is_dir_null){
+	if(dir!=NULL){
 		dir_lookup(dir, file, &inode);
-		if(inode == NULL) break;
-		else if(inode->data.is_sym){
+		if(!inode->data.is_sym){
 			dir_close(dir);
-			name = inode->data.link;
+			return file_open(inode);
 		}
-		dir = path_to_file(name, file);
-		if(dir == NULL) is_dir_null = true;
+		else{
+			while(true){
+				dir_close(dir);
+				name = inode->data.link;
+				dir = path_to_file(name, file);
+				if(dir == NULL) break;
+				dir_lookup(dir, file, &inode);
+				if(inode == NULL) break;
+			}
+		}
 	}
-
 	dir_close(dir);
 	return file_open(inode);
 
@@ -160,9 +165,11 @@ filesys_remove (const char *name) {
 		if(!inode_is_dir(inode)){ //file
 			inode_close(inode);
 			if(dir && dir_remove(dir, file)) success = true;
+			dir_close(dir);
 		}
 		else{ //directory
 			dir_opened = dir_open(inode);
+			dir_opened->pos = 2*(sizeof(struct dir_entry));
 			if(dir_readdir(dir_opened, name_tmp)){
 				if(dir && dir_remove(dir_opened, file))
 					success = true;
@@ -275,7 +282,7 @@ path_to_file(char *path, char *file){
 	strlcpy(path_cpy, path, FILE_LEN_MAX+1);
 
 	if(path_cpy[0] == '/') dir = dir_open_root();
-	// else if(thread_current()->curr_dir == NULL) dir = dir_open_root();
+	else if(thread_current()->curr_dir == NULL) dir = dir_open_root();
 	else dir = dir_reopen(thread_current()->curr_dir);
 	
 	char *token, *token_next, *token_save;
@@ -283,7 +290,7 @@ path_to_file(char *path, char *file){
 	token_next = strtok_r(NULL, "/", &token_save);
 
 	if(token == NULL){
-		strlcpy(file, ".", NAME_MAX);
+		strlcpy(file, ".", 2);
 		return dir;
 	}
 
@@ -317,13 +324,14 @@ path_to_file(char *path, char *file){
 
 			dir_close(dir);
 
-			if(path[0] == '/') dir = dir_open_root();
-			// else if(thread_current()->curr_dir == NULL) dir = dir_open_root();
+			if(path_cpy[0] == '/') dir = dir_open_root();
+			else if(thread_current()->curr_dir == NULL) dir = dir_open_root();
 			else dir = dir_reopen(thread_current()->curr_dir);
 
-			token = strtok_r(path, "/", &token_save);
+			token = strtok_r(path_cpy, "/", &token_save);
 			token_next = strtok_r(NULL, "/", &token_save);
 		}
 	}
+	strlcpy(file, token, strlen(token)+1);
 	return dir;
 }
