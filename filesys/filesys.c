@@ -154,6 +154,8 @@ filesys_remove (const char *name) {
 	struct inode *inode;
 	bool success;
 
+	if(!strcmp(name, "/")) return false;
+
 	dir = path_to_file(name, file);
 	inode = NULL;
 	if(dir == NULL){
@@ -206,12 +208,18 @@ filesys_remove (const char *name) {
 bool filesys_chdir(const char *name){
 	bool ret = false;
 	char file[NAME_MAX+1];
+	struct inode *inode = NULL;
 	struct dir *dir = path_to_file(name, file);
+	
 	if(dir){
-		dir_close(thread_current()->curr_dir);
-    	thread_current()->curr_dir = dir;
-    	ret = true;
+		if(dir_lookup(dir, file, &inode)){
+			struct dir *chdir = dir_open(inode);
+			dir_close(thread_current()->curr_dir);
+			thread_current()->curr_dir = chdir;
+			ret = true;	
+		}
 	}
+	dir_close(dir);
 	return ret;
 }
 
