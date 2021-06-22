@@ -254,6 +254,7 @@ bool
 create (const char *file, unsigned initial_size){
 	if(!is_user_vaddr(file) || file == NULL) exit(-1);
 	// if(pml4_get_page(thread_current()->pml4, file) == NULL) exit(-1);
+	if(thread_current()->num_fd > 500) return 0;
 	return filesys_create(file, initial_size);
 }
 
@@ -481,7 +482,7 @@ int symlink (const char *target, const char *linkpath){
 			ret = dir_add(dir, file, cluster) - 1;
 		}
 	}
-	if (ret = -1 && cluster != 0)
+	if (ret == -1 && cluster != 0)
         fat_remove_chain(cluster, 0);
     
     dir_close(dir);
