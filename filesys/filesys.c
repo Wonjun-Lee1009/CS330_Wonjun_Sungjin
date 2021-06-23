@@ -29,6 +29,10 @@ filesys_init (bool format) {
 
 	if (format){
 		do_format ();
+		struct dir *dir = dir_open_root();
+		dir_add(dir, ".", ROOT_DIR_SECTOR);
+		dir_add(dir, "..", ROOT_DIR_SECTOR);
+		dir_close(dir);
 	}
 
 	fat_open ();
@@ -164,34 +168,37 @@ filesys_remove (const char *name) {
 	}
 	else{
 		dir_lookup(dir, file, &inode);
-		if(!inode_is_dir(inode)){ //file
-			inode_close(inode);
-			if(dir && dir_remove(dir, file)) success = true;
-			// dir_close(dir);
-		}
-		else{ //directory
-			dir_opened = dir_open(inode);
-			dir_opened->pos = 2*(sizeof(struct dir_entry));
-			if(dir_readdir(dir_opened, name_tmp)){
-				if(dir && dir_remove(dir_opened, file))
-					success = true;
-				else
-					success = false;
+		if(inode){
+			if(!inode_is_dir(inode)){ //file
+				inode_close(inode);
+				if(dir && dir_remove(dir, file)) success = true;
+				// dir_close(dir);
 			}
-			else{
-				struct dir *curr_dir = thread_current()->curr_dir;
-				disk_sector_t curr_dir_location, opened_dir_location;
-				curr_dir_location = inode_get_inumber(dir_get_inode(curr_dir));
-				opened_dir_location = inode_get_inumber(dir_get_inode(dir_opened));
-				if(curr_dir_location != opened_dir_location){
-					if(dir && dir_remove(dir, file))
+			else{ //directory
+				dir_opened = dir_open(inode);
+				dir_opened->pos = 2*(sizeof(struct dir_entry));
+				if(dir_readdir(dir_opened, name_tmp)){
+					if(dir && dir_remove(dir_opened, file))
 						success = true;
 					else
 						success = false;
 				}
+				else{
+					struct dir *curr_dir = thread_current()->curr_dir;
+					disk_sector_t curr_dir_location, opened_dir_location;
+					curr_dir_location = inode_get_inumber(dir_get_inode(curr_dir));
+					opened_dir_location = inode_get_inumber(dir_get_inode(dir_opened));
+					if(curr_dir_location != opened_dir_location){
+						if(dir && dir_remove(dir, file))
+							success = true;
+						else
+							success = false;
+					}
+				}
+				dir_close(dir_opened);
 			}
-			dir_close(dir_opened);
 		}
+		else success = false;
 	}
 	dir_close(dir);
 	return success;
@@ -266,10 +273,6 @@ do_format (void) {
 	if (!dir_create(ROOT_DIR_SECTOR, 16))
         PANIC("root directory creation failed");
 
-	struct dir *dir = dir_open_root();
-	dir_add(dir, ".", ROOT_DIR_SECTOR);
-	dir_add(dir, "..", ROOT_DIR_SECTOR);
-	dir_close(dir);
 	fat_close ();
 	
 #else
